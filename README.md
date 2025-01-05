@@ -43,9 +43,15 @@ Seven constituencies are small enough and/or awkwardly-shaped enough that they c
 
   - Clone the repository
   - Change directory into the respository
-  - Install the dependencies (e.g. using Anaconda)
-  - Run `python generate_bubbles.py`
+  - Install the dependencies, e.g. using Anaconda:
 
+      conda env create --file environment.yml
+
+  - Run `python generate_bubbles.py`, which will:
+    - Download and fetch shapefiles for constituencies into `data/`
+    - Write images showing bubble coverage into `output/JPGs`
+    - Write `output/bubbles.csv` with one bubble per record
+    - Write `output/statistics.csv` with one constituency per record
 
  ## Was this done for the current/old/pre-2024 constituencies?
 
