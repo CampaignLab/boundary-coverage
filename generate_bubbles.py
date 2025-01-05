@@ -135,7 +135,7 @@ def get_statistics_row(boundary_name, coverage_percentage, bubblesData):
 
   return statistics_row
 
-if __name__ == '__main__':
+def main():
   parser = argparse.ArgumentParser(description='Generate bubbles for constituencies or wards')
   parser.add_argument('--wards', action='store_true', help='Use wards instead of constituencies')
   args = parser.parse_args()
@@ -232,3 +232,7 @@ if __name__ == '__main__':
     statistics_writer.writerow(['min', min(statistics)])
     statistics_writer.writerow(['max', max(statistics)])
     statistics_writer.writerow(['sigma', np.std(statistics)])
+
+
+if __name__ == '__main__':
+  main()
