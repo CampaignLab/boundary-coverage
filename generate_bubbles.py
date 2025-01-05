@@ -135,103 +135,123 @@ def get_statistics_row(boundary_name, coverage_percentage, bubblesData):
 
   return statistics_row
 
-def main():
-  parser = argparse.ArgumentParser(description='Generate bubbles for constituencies or wards')
-  parser.add_argument('--wards', action='store_true', help='Use wards instead of constituencies')
-  args = parser.parse_args()
+def setup_output_directories(output_type):
+    if not os.path.exists(output_type):
+        os.makedirs(output_type)
+    if not os.path.exists(f'output/{output_type}'):
+        os.makedirs(f'output/{output_type}')
+    if not os.path.exists(f'output/{output_type}/JPGs'):
+        os.makedirs(f'output/{output_type}/JPGs')
 
-  if args.wards:
-    output_type = 'wards'
-    wards_path = 'wards/' + wards_shapefile_filename
-    download_to_file(wards_shapefile_url, wards_path)
-    boundaries = create_boundary_list(wards_path, 'WD24CD', 'WD24NM')
-  else:
-    output_type = 'constituencies'
-    download_and_extract(england_shapefile_url, 'england')
-    download_and_extract(scotland_shapefile_url, 'scotland')
-    download_and_extract(wales_shapefile_url, 'wales')
+def get_boundaries(use_wards):
+    if use_wards:
+        wards_path = 'wards/' + wards_shapefile_filename
+        download_to_file(wards_shapefile_url, wards_path)
+        return create_boundary_list(wards_path, 'WD24CD', 'WD24NM'), 'wards'
+    else:
+        download_and_extract(england_shapefile_url, 'england')
+        download_and_extract(scotland_shapefile_url, 'scotland')
+        download_and_extract(wales_shapefile_url, 'wales')
 
-    england_constituencies = create_boundary_list('england/' + england_shapefile_filename, 'Constituen')
-    scotland_constituencies = create_boundary_list('scotland/' + scotland_shapefile_filename, 'NAME')
-    wales_constituencies = create_boundary_list('wales/' + wales_shapefile_filename, 'Official_N')
+        england_constituencies = create_boundary_list('england/' + england_shapefile_filename, 'Constituen')
+        scotland_constituencies = create_boundary_list('scotland/' + scotland_shapefile_filename, 'NAME')
+        wales_constituencies = create_boundary_list('wales/' + wales_shapefile_filename, 'Official_N')
 
-    boundaries = england_constituencies + scotland_constituencies + wales_constituencies
+        return england_constituencies + scotland_constituencies + wales_constituencies, 'constituencies'
 
-  if not os.path.exists(output_type):
-      os.makedirs(output_type)
-
-  transformer = pyproj.Transformer.from_crs("epsg:27700", "epsg:4326")
-
-  with (
-    open(f'output/{output_type}/bubbles.csv', 'w') as csv_output,
-    open(f'output/{output_type}/statistics.csv', 'w') as statistics_output
-  ):
-    output_writer = csv.writer(csv_output)
-    output_writer.writerow(['bubble', 'name'])
-
-    statistics_writer = csv.writer(statistics_output)
-    statistics_writer.writerow(['name', 'coverage'])
-
-    statistics = []
-
-    for boundary_item in boundaries:
-      boundary_name = boundary_item[0]
-      boundary = boundary_item[1]
-      jpeg_path = os.path.join(f'output/{output_type}/JPGs', boundary_name.replace('/', '&') + '.jpg')
-      print(jpeg_path)
-
-      bubbles, bubblesData = calculate_bubbles(boundary)
-
-      for (x, y, radius) in bubblesData:
-        lat, long = transformer.transform(x, y)
-        output_writer.writerow(['({}, {}) +{}km'.format(lat, long, radius), boundary_name])
-
-      fig, ax = plt.subplots(1, 2)
-      ax[0].set_aspect('equal', adjustable='box')
-      ax[1].set_aspect('equal', adjustable='box')
-      fig.suptitle(boundary_name, y=0.98)
-
-      coverage_percentage = 100 * union_all(bubbles).area / boundary.area
-      statistics_writer.writerow(get_statistics_row(boundary_name, coverage_percentage, bubblesData))
-      statistics.append(coverage_percentage)
-
-      # Calculate area in square kilometers (converting from square meters)
-      area_sq_km = boundary.area / 1_000_000
-
-      # Update the figure text and move it down by setting y to 0.85
-      fig.text(0.5, 0.85, f'{coverage_percentage:.0f}% coverage\nArea: {area_sq_km:.1f} km²',
-               ha='center', fontsize=12)
-
-      ax[0].xaxis.set_visible(False)
-      ax[0].yaxis.set_visible(False)
-
-      ax[1].xaxis.set_visible(False)
-      ax[1].yaxis.set_visible(False)
-
-      polygons = boundary.geoms if isinstance(boundary, GeometryCollection) or isinstance(boundary, MultiPolygon) else [boundary]
-      for polygon in polygons:
-        if isinstance(polygon, LineString):
-          continue
-        rings = [polygon.exterior] + [interior for interior in polygon.interiors]
-        for ring in rings:
-          x, y = ring.xy
-          ax[0].plot(x, y, color='blue')
-          ax[1].plot(x, y, color='blue')
-
-      for valid_circle in bubbles:
-        x, y = valid_circle.exterior.xy
-        ax[0].plot(x, y, color='red', linewidth=0.5)
-        ax[1].fill(x, y, color='red')
-
-      fig.savefig(jpeg_path, dpi=300)
-      plt.close(fig)
-
+def write_statistics(statistics_writer, statistics):
     statistics_writer.writerow(['', ''])
     statistics_writer.writerow(['mean', sum(statistics) / len(statistics)])
     statistics_writer.writerow(['median', np.median(statistics)])
     statistics_writer.writerow(['min', min(statistics)])
     statistics_writer.writerow(['max', max(statistics)])
     statistics_writer.writerow(['sigma', np.std(statistics)])
+
+def plot_boundary(ax, boundary):
+    polygons = boundary.geoms if isinstance(boundary, GeometryCollection) or isinstance(boundary, MultiPolygon) else [boundary]
+    for polygon in polygons:
+        if isinstance(polygon, LineString):
+            continue
+        rings = [polygon.exterior] + [interior for interior in polygon.interiors]
+        for ring in rings:
+            x, y = ring.xy
+            ax[0].plot(x, y, color='blue')
+            ax[1].plot(x, y, color='blue')
+
+def plot_bubbles(ax, bubbles):
+    for valid_circle in bubbles:
+        x, y = valid_circle.exterior.xy
+        ax[0].plot(x, y, color='red', linewidth=0.5)
+        ax[1].fill(x, y, color='red')
+
+def process_boundary(boundary_item, output_type, transformer, output_writer, statistics_writer):
+    boundary_name = boundary_item[0]
+    boundary = boundary_item[1]
+    jpeg_path = os.path.join(f'output/{output_type}/JPGs', boundary_name.replace('/', '&') + '.jpg')
+    print(jpeg_path)
+
+    bubbles, bubblesData = calculate_bubbles(boundary)
+
+    for (x, y, radius) in bubblesData:
+        lat, long = transformer.transform(x, y)
+        output_writer.writerow(['({}, {}) +{}km'.format(lat, long, radius), boundary_name])
+
+    fig, ax = plt.subplots(1, 2)
+    ax[0].set_aspect('equal', adjustable='box')
+    ax[1].set_aspect('equal', adjustable='box')
+    fig.suptitle(boundary_name, y=0.98)
+
+    coverage_percentage = 100 * union_all(bubbles).area / boundary.area
+    statistics_writer.writerow(get_statistics_row(boundary_name, coverage_percentage, bubblesData))
+
+    area_sq_km = boundary.area / 1_000_000
+    fig.text(0.5, 0.85, f'{coverage_percentage:.0f}% coverage\nArea: {area_sq_km:.1f} km²',
+             ha='center', fontsize=12)
+
+    ax[0].xaxis.set_visible(False)
+    ax[0].yaxis.set_visible(False)
+    ax[1].xaxis.set_visible(False)
+    ax[1].yaxis.set_visible(False)
+
+    plot_boundary(ax, boundary)
+    plot_bubbles(ax, bubbles)
+
+    fig.savefig(jpeg_path, dpi=300)
+    plt.close(fig)
+
+    return coverage_percentage
+
+def main():
+    parser = argparse.ArgumentParser(description='Generate bubbles for constituencies or wards')
+    parser.add_argument('--wards', action='store_true', help='Use wards instead of constituencies')
+    args = parser.parse_args()
+
+    boundaries, output_type = get_boundaries(args.wards)
+    setup_output_directories(output_type)
+    transformer = pyproj.Transformer.from_crs("epsg:27700", "epsg:4326")
+
+    with (
+        open(f'output/{output_type}/bubbles.csv', 'w') as csv_output,
+        open(f'output/{output_type}/statistics.csv', 'w') as statistics_output
+    ):
+        output_writer = csv.writer(csv_output)
+        output_writer.writerow(['bubble', 'name'])
+
+        statistics_writer = csv.writer(statistics_output)
+        statistics_writer.writerow(['name', 'coverage'])
+
+        statistics = []
+        for boundary_item in boundaries:
+            coverage_percentage = process_boundary(
+                boundary_item,
+                output_type,
+                transformer,
+                output_writer,
+                statistics_writer
+            )
+            statistics.append(coverage_percentage)
+
+        write_statistics(statistics_writer, statistics)
 
 
 if __name__ == '__main__':
