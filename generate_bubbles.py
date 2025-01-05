@@ -10,30 +10,57 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pyproj
 import csv
+import argparse
 
 BUBBLE_LIMIT = 200
 
 england_shapefile_url = 'https://boundarycommissionforengland.independent.gov.uk/wp-content/uploads/2023/06/984162_2023_06_27_Final_recommendations_England_shp.zip'
-scotland_shapefile_path = 'https://www.bcomm-scotland.independent.gov.uk/sites/default/files/2023_review_final/bcs_final_recs_2023_review.zip'
-wales_shapefile_path = 'https://bcomm-wales.gov.uk/sites/bcomm/files/review/Shapefiles.zip'
+scotland_shapefile_url = 'https://www.bcomm-scotland.independent.gov.uk/sites/default/files/2023_review_final/bcs_final_recs_2023_review.zip'
+wales_shapefile_url = 'https://bcomm-wales.gov.uk/sites/bcomm/files/review/Shapefiles.zip'
+
+wards_shapefile_url = 'https://open-geography-portalx-ons.hub.arcgis.com/api/download/v1/items/b58c65bdad994ed3a33741eea7bb09ab/geoPackage?layers=0'
 
 england_shapefile_filename = '2023_06_27_Final_recommendations_England.shp'
 scotland_shapefile_filename = 'All_Scotland_Final_Recommended_Constituencies_2023_Review.shp'
 wales_shapefile_filename = 'Final Recs Shapefiles/Final Recommendations_region.shp'
 
-def download_and_extract(url, path):
-    if not os.path.exists('data/' + path):
-        response = requests.get(url)
-        zip_file = zipfile.ZipFile(io.BytesIO(response.content))
-        zip_file.extractall('data/' + path)
+wards_shapefile_filename = 'Wards_May_2024_Boundaries_UK_BSC_8498175397534686318.gpkg'
 
-def create_constituency_list(shapefile_path, constituency_name_key):
-   constituencies = []
-   with fiona.open('data/' + shapefile_path) as boundaries:
-    for constituency in boundaries:
-      constituency_shape = make_valid(shape(constituency['geometry']))
-      constituencies.append((constituency.properties[constituency_name_key], constituency_shape))
-    return constituencies
+def download_and_extract(url, path):
+  filepath = os.path.join('data', path)
+  if os.path.exists(filepath):
+    print(f'{filepath} already exists')
+    return
+
+  print(f'Downloading {url}')
+  response = requests.get(url)
+  print(f'Extracting to {filepath}')
+  zip_file = zipfile.ZipFile(io.BytesIO(response.content))
+  zip_file.extractall(filepath)
+
+def download_to_file(url, path):
+  print(f'Downloading {url} to {path}')
+  filepath = os.path.join('data', path)
+  if os.path.exists(filepath):
+    print(f'{filepath} already exists')
+    return
+
+  response = requests.get(url, allow_redirects=True)
+  response.raise_for_status()
+
+  with open(filepath, 'wb') as f:
+    f.write(response.content)
+
+def create_boundary_list(shapefile_path, key1, key2=None):
+  boundaries = []
+  with fiona.open('data/' + shapefile_path) as boundaries_file:
+    for boundary in boundaries_file:
+      boundary_shape = make_valid(shape(boundary['geometry']))
+      key = boundary.properties[key1]
+      if key2:
+        key = key + ' ' + boundary.properties[key2]
+      boundaries.append((key, boundary_shape))
+    return boundaries
 
 def calculate_radius_upper_bound(boundary):
   mrr = minimum_rotated_rectangle(boundary)
@@ -51,7 +78,7 @@ def calculate_step(polygons, radius, bubble_length):
   iteration_bubble_count = total_polygon_length / radius
   step = radius
   is_last_iteration = radius == 1000 or (bubble_length + iteration_bubble_count) > BUBBLE_LIMIT
-  
+
   if is_last_iteration:
     step = total_polygon_length / (BUBBLE_LIMIT - bubble_length)
 
@@ -60,7 +87,7 @@ def calculate_step(polygons, radius, bubble_length):
 def calculate_bubbles(boundary):
   radius = calculate_radius_upper_bound(boundary)
   island_of_possibility = None
-  
+
   bubbles = []
   bubblesData = []
 
@@ -68,7 +95,7 @@ def calculate_bubbles(boundary):
     island_of_possibility = buffer(boundary, -(radius + 30))
 
     if not is_empty(island_of_possibility):
-      print(radius)
+      print(f'   {radius}')
       polygons = island_of_possibility.geoms if isinstance(island_of_possibility, MultiPolygon) else [island_of_possibility]
 
       step = calculate_step(polygons, radius, len(bubbles))
@@ -87,12 +114,12 @@ def calculate_bubbles(boundary):
 
   return bubbles[:BUBBLE_LIMIT], bubblesData[:BUBBLE_LIMIT]
 
-def get_statistics_row(constituency_name, coverage_percentage, bubblesData):
-  statistics_row = [constituency_name, coverage_percentage]
+def get_statistics_row(boundary_name, coverage_percentage, bubblesData):
+  statistics_row = [boundary_name, coverage_percentage]
 
   if len(bubblesData) == 0:
     return statistics_row
-  
+
   bubble_count_by_radius = {}
   for (_, _, radius) in bubblesData:
     if radius in bubble_count_by_radius:
@@ -105,57 +132,75 @@ def get_statistics_row(constituency_name, coverage_percentage, bubblesData):
       statistics_row.append(bubble_count_by_radius[radius])
     else:
       statistics_row.append(0)
-  
+
   return statistics_row
 
 if __name__ == '__main__':
-  download_and_extract(england_shapefile_url, 'england')
-  download_and_extract(scotland_shapefile_path, 'scotland')
-  download_and_extract(wales_shapefile_path, 'wales')
+  parser = argparse.ArgumentParser(description='Generate bubbles for constituencies or wards')
+  parser.add_argument('--wards', action='store_true', help='Use wards instead of constituencies')
+  args = parser.parse_args()
 
-  england_constituencies = create_constituency_list('england/' + england_shapefile_filename, 'Constituen')
-  scotland_constituencies = create_constituency_list('scotland/' + scotland_shapefile_filename, 'NAME')
-  wales_constituencies = create_constituency_list('wales/' + wales_shapefile_filename, 'Official_N')
+  if args.wards:
+    output_type = 'wards'
+    wards_path = 'wards/' + wards_shapefile_filename
+    download_to_file(wards_shapefile_url, wards_path)
+    boundaries = create_boundary_list(wards_path, 'WD24CD', 'WD24NM')
+  else:
+    output_type = 'constituencies'
+    download_and_extract(england_shapefile_url, 'england')
+    download_and_extract(scotland_shapefile_url, 'scotland')
+    download_and_extract(wales_shapefile_url, 'wales')
 
-  constituencies = england_constituencies + scotland_constituencies + wales_constituencies
+    england_constituencies = create_boundary_list('england/' + england_shapefile_filename, 'Constituen')
+    scotland_constituencies = create_boundary_list('scotland/' + scotland_shapefile_filename, 'NAME')
+    wales_constituencies = create_boundary_list('wales/' + wales_shapefile_filename, 'Official_N')
 
-  if not os.path.exists('output/JPGs'):
-      os.makedirs('output/JPGs')
+    boundaries = england_constituencies + scotland_constituencies + wales_constituencies
+
+  if not os.path.exists(output_type):
+      os.makedirs(output_type)
 
   transformer = pyproj.Transformer.from_crs("epsg:27700", "epsg:4326")
 
   with (
-    open('output/bubbles.csv', 'w') as csv_output,
-    open('output/statistics.csv', 'w') as stastics_output
+    open(f'output/{output_type}/bubbles.csv', 'w') as csv_output,
+    open(f'output/{output_type}/statistics.csv', 'w') as statistics_output
   ):
     output_writer = csv.writer(csv_output)
-    output_writer.writerow(['bubble', 'constituency'])
+    output_writer.writerow(['bubble', 'name'])
 
-    statistics_writer = csv.writer(stastics_output)
-    statistics_writer.writerow(['constituency', 'coverage'])
+    statistics_writer = csv.writer(statistics_output)
+    statistics_writer.writerow(['name', 'coverage'])
 
     statistics = []
 
-    for constituency in constituencies:
-      constituency_name = constituency[0]
-      boundary = constituency[1]
-      print(constituency_name)
+    for boundary_item in boundaries:
+      boundary_name = boundary_item[0]
+      boundary = boundary_item[1]
+      jpeg_path = os.path.join(f'output/{output_type}/JPGs', boundary_name.replace('/', '&') + '.jpg')
+      print(jpeg_path)
 
       bubbles, bubblesData = calculate_bubbles(boundary)
 
       for (x, y, radius) in bubblesData:
         lat, long = transformer.transform(x, y)
-        output_writer.writerow(['({}, {}) +{}km'.format(lat, long, radius), constituency_name])
+        output_writer.writerow(['({}, {}) +{}km'.format(lat, long, radius), boundary_name])
 
       fig, ax = plt.subplots(1, 2)
       ax[0].set_aspect('equal', adjustable='box')
       ax[1].set_aspect('equal', adjustable='box')
-      fig.suptitle(constituency_name)
+      fig.suptitle(boundary_name, y=0.98)
 
       coverage_percentage = 100 * union_all(bubbles).area / boundary.area
-      statistics_writer.writerow(get_statistics_row(constituency_name, coverage_percentage, bubblesData))
+      statistics_writer.writerow(get_statistics_row(boundary_name, coverage_percentage, bubblesData))
       statistics.append(coverage_percentage)
-      fig.text(0.5, 0.9, '{:.0f}% coverage'.format(coverage_percentage), ha='center', fontsize=12)
+
+      # Calculate area in square kilometers (converting from square meters)
+      area_sq_km = boundary.area / 1_000_000
+
+      # Update the figure text and move it down by setting y to 0.85
+      fig.text(0.5, 0.85, f'{coverage_percentage:.0f}% coverage\nArea: {area_sq_km:.1f} km²',
+               ha='center', fontsize=12)
 
       ax[0].xaxis.set_visible(False)
       ax[0].yaxis.set_visible(False)
@@ -178,9 +223,9 @@ if __name__ == '__main__':
         ax[0].plot(x, y, color='red', linewidth=0.5)
         ax[1].fill(x, y, color='red')
 
-      fig.savefig('output/JPGs/' + constituency_name + '.jpg', dpi=300)
+      fig.savefig(jpeg_path, dpi=300)
       plt.close(fig)
-    
+
     statistics_writer.writerow(['', ''])
     statistics_writer.writerow(['mean', sum(statistics) / len(statistics)])
     statistics_writer.writerow(['median', np.median(statistics)])
