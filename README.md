@@ -53,6 +53,8 @@ Seven constituencies are small enough and/or awkwardly-shaped enough that they c
     - Write `output/constituencies/bubbles.csv` with one bubble per record
     - Write `output/constituencies/statistics.csv` with one constituency per record
 
+  - Run `python app.py` and view http://localhost:5000/
+
  ## Was this done for the current/old/pre-2024 constituencies?
 
  Yes!
