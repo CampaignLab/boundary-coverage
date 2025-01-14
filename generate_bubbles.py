@@ -18,6 +18,7 @@ england_shapefile_url = 'https://boundarycommissionforengland.independent.gov.uk
 scotland_shapefile_url = 'https://www.bcomm-scotland.independent.gov.uk/sites/default/files/2023_review_final/bcs_final_recs_2023_review.zip'
 wales_shapefile_url = 'https://bcomm-wales.gov.uk/sites/bcomm/files/review/Shapefiles.zip'
 
+# https://www.data.gov.uk/dataset/0bdfd7a6-e6a4-4d63-a684-b6dda1d86d47/wards-may-2024-boundaries-uk-bsc
 wards_shapefile_url = 'https://open-geography-portalx-ons.hub.arcgis.com/api/download/v1/items/b58c65bdad994ed3a33741eea7bb09ab/geoPackage?layers=0'
 
 england_shapefile_filename = '2023_06_27_Final_recommendations_England.shp'
