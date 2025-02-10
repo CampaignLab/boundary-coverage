@@ -201,6 +201,19 @@ def get_statistics_row(boundary_name, coverage_percentage, bubblesData):
 
     return statistics_row
 
+def get_output_directory(output_type, directory_type):
+    """
+    Returns the directory path for output files.
+
+    Args:
+        output_type (str): Type of output (e.g., 'constituencies' or 'wards')
+        directory_type (str): Type of directory ('JPGs' or 'CSVs')
+
+    Returns:
+        str: Path to the output directory
+    """
+    return os.path.join(f'output/{output_type}/{directory_type}')
+
 def setup_output_directories(output_type):
     """
     Creates necessary output directories for storing results.
@@ -212,10 +225,10 @@ def setup_output_directories(output_type):
         os.makedirs(output_type)
     if not os.path.exists(f'output/{output_type}'):
         os.makedirs(f'output/{output_type}')
-    if not os.path.exists(f'output/{output_type}/JPGs'):
-        os.makedirs(f'output/{output_type}/JPGs')
-    if not os.path.exists(f'output/{output_type}/CSVs'):
-        os.makedirs(f'output/{output_type}/CSVs')
+    if not os.path.exists(get_output_directory(output_type, 'JPGs')):
+        os.makedirs(get_output_directory(output_type, 'JPGs'))
+    if not os.path.exists(get_output_directory(output_type, 'CSVs')):
+        os.makedirs(get_output_directory(output_type, 'CSVs'))
 
 def get_boundaries(use_wards):
     """
@@ -299,7 +312,7 @@ def create_boundary_visualization(boundary_name, boundary, bubbles, coverage_per
         coverage_percentage (float): Percentage of boundary covered by bubbles
         output_type (str): Type of output (e.g., 'constituencies' or 'wards')
     """
-    jpeg_path = os.path.join(f'output/{output_type}/JPGs', boundary_name.replace('/', '&') + '.jpg')
+    jpeg_path = os.path.join(get_output_directory(output_type, 'JPGs'), boundary_name.replace('/', '&') + '.jpg')
     print(jpeg_path)
 
     fig, ax = plt.subplots(1, 2)
@@ -341,7 +354,7 @@ def process_boundary(boundary_item, output_type, transformer, output_writer, sta
 
     bubbles, bubblesData = calculate_bubbles(boundary)
 
-    csv_file = f'output/{output_type}/CSVs/{boundary_name}.csv'
+    csv_file = os.path.join(get_output_directory(output_type, 'CSVs'), f'{boundary_name}.csv')
     with open(csv_file, 'w') as csv_output:
         bubbles_writer = csv.writer(csv_output)
         bubbles_writer.writerow(['bubble'])
