@@ -286,6 +286,37 @@ def plot_bubbles(ax, bubbles):
         ax[0].plot(x, y, color='red', linewidth=0.5)
         ax[1].fill(x, y, color='red')
 
+def create_boundary_visualization(boundary_name, boundary, bubbles, coverage_percentage, jpeg_path):
+    """
+    Creates and saves a visualization of a boundary and its bubbles.
+
+    Args:
+        boundary_name (str): Name of the boundary
+        boundary: Shapely geometry object representing the boundary
+        bubbles (list): List of bubble geometries
+        coverage_percentage (float): Percentage of boundary covered by bubbles
+        jpeg_path (str): Path where the JPEG should be saved
+    """
+    fig, ax = plt.subplots(1, 2)
+    ax[0].set_aspect('equal', adjustable='box')
+    ax[1].set_aspect('equal', adjustable='box')
+    fig.suptitle(boundary_name, y=0.98)
+
+    area_sq_km = boundary.area / 1_000_000
+    fig.text(0.5, 0.85, f'{coverage_percentage:.0f}% coverage\nArea: {area_sq_km:.1f} km²',
+             ha='center', fontsize=12)
+
+    ax[0].xaxis.set_visible(False)
+    ax[0].yaxis.set_visible(False)
+    ax[1].xaxis.set_visible(False)
+    ax[1].yaxis.set_visible(False)
+
+    plot_boundary(ax, boundary)
+    plot_bubbles(ax, bubbles)
+
+    fig.savefig(jpeg_path, dpi=300)
+    plt.close(fig)
+
 def process_boundary(boundary_item, output_type, transformer, output_writer, statistics_writer):
     """
     Processes a single boundary: generates bubbles, creates visualizations, and writes statistics.
@@ -311,28 +342,10 @@ def process_boundary(boundary_item, output_type, transformer, output_writer, sta
         lat, long = transformer.transform(x, y)
         output_writer.writerow(['({}, {}) +{}km'.format(lat, long, radius), boundary_name])
 
-    fig, ax = plt.subplots(1, 2)
-    ax[0].set_aspect('equal', adjustable='box')
-    ax[1].set_aspect('equal', adjustable='box')
-    fig.suptitle(boundary_name, y=0.98)
-
     coverage_percentage = 100 * union_all(bubbles).area / boundary.area
     statistics_writer.writerow(get_statistics_row(boundary_name, coverage_percentage, bubblesData))
 
-    area_sq_km = boundary.area / 1_000_000
-    fig.text(0.5, 0.85, f'{coverage_percentage:.0f}% coverage\nArea: {area_sq_km:.1f} km²',
-             ha='center', fontsize=12)
-
-    ax[0].xaxis.set_visible(False)
-    ax[0].yaxis.set_visible(False)
-    ax[1].xaxis.set_visible(False)
-    ax[1].yaxis.set_visible(False)
-
-    plot_boundary(ax, boundary)
-    plot_bubbles(ax, bubbles)
-
-    fig.savefig(jpeg_path, dpi=300)
-    plt.close(fig)
+    create_boundary_visualization(boundary_name, boundary, bubbles, coverage_percentage, jpeg_path)
 
     return coverage_percentage
 
