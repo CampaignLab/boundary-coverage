@@ -214,6 +214,8 @@ def setup_output_directories(output_type):
         os.makedirs(f'output/{output_type}')
     if not os.path.exists(f'output/{output_type}/JPGs'):
         os.makedirs(f'output/{output_type}/JPGs')
+    if not os.path.exists(f'output/{output_type}/CSVs'):
+        os.makedirs(f'output/{output_type}/CSVs')
 
 def get_boundaries(use_wards):
     """
@@ -286,7 +288,7 @@ def plot_bubbles(ax, bubbles):
         ax[0].plot(x, y, color='red', linewidth=0.5)
         ax[1].fill(x, y, color='red')
 
-def create_boundary_visualization(boundary_name, boundary, bubbles, coverage_percentage, jpeg_path):
+def create_boundary_visualization(boundary_name, boundary, bubbles, coverage_percentage, output_type):
     """
     Creates and saves a visualization of a boundary and its bubbles.
 
@@ -295,8 +297,11 @@ def create_boundary_visualization(boundary_name, boundary, bubbles, coverage_per
         boundary: Shapely geometry object representing the boundary
         bubbles (list): List of bubble geometries
         coverage_percentage (float): Percentage of boundary covered by bubbles
-        jpeg_path (str): Path where the JPEG should be saved
+        output_type (str): Type of output (e.g., 'constituencies' or 'wards')
     """
+    jpeg_path = os.path.join(f'output/{output_type}/JPGs', boundary_name.replace('/', '&') + '.jpg')
+    print(jpeg_path)
+
     fig, ax = plt.subplots(1, 2)
     ax[0].set_aspect('equal', adjustable='box')
     ax[1].set_aspect('equal', adjustable='box')
@@ -333,19 +338,23 @@ def process_boundary(boundary_item, output_type, transformer, output_writer, sta
     """
     boundary_name = boundary_item[0]
     boundary = boundary_item[1]
-    jpeg_path = os.path.join(f'output/{output_type}/JPGs', boundary_name.replace('/', '&') + '.jpg')
-    print(jpeg_path)
 
     bubbles, bubblesData = calculate_bubbles(boundary)
 
-    for (x, y, radius) in bubblesData:
-        lat, long = transformer.transform(x, y)
-        output_writer.writerow(['({}, {}) +{}km'.format(lat, long, radius), boundary_name])
+    csv_file = f'output/{output_type}/CSVs/{boundary_name}.csv'
+    with open(csv_file, 'w') as csv_output:
+        bubbles_writer = csv.writer(csv_output)
+        bubbles_writer.writerow(['bubble'])
+        for (x, y, radius) in bubblesData:
+            lat, long = transformer.transform(x, y)
+            bubbles_writer.writerow(['({}, {}) +{}km'.format(lat, long, radius)])
+            output_writer.writerow(['({}, {}) +{}km'.format(lat, long, radius), boundary_name])
+    print(csv_file)
 
     coverage_percentage = 100 * union_all(bubbles).area / boundary.area
     statistics_writer.writerow(get_statistics_row(boundary_name, coverage_percentage, bubblesData))
 
-    create_boundary_visualization(boundary_name, boundary, bubbles, coverage_percentage, jpeg_path)
+    create_boundary_visualization(boundary_name, boundary, bubbles, coverage_percentage, output_type)
 
     return coverage_percentage
 
