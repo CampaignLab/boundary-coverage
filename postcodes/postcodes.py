@@ -9,6 +9,7 @@ import pprint
 import re
 import sys
 import yaml
+import os
 from typing import List, Dict, Set, Any
 
 def parse_csv_file(
@@ -57,6 +58,9 @@ def main():
         print("Usage: ./postcodes.py <csv_file> [[csv_file2] ...]", file=sys.stderr)
         sys.exit(1)
 
+    # Create output directory if it doesn't exist
+    os.makedirs('output', exist_ok=True)
+
     sectors = {}  # Dict[Sector, Dict[Ward, List[postcode]]]
     sectors2 = {} # Dict[Sector, List[Ward]]
     wards = set()
@@ -70,26 +74,26 @@ def main():
 
     sectors3.sort(key=lambda x: x[1], reverse=True)
 
-    with open('sectors.json', 'w') as f:
+    with open('output/sectors.json', 'w') as f:
         json.dump(sectors, f, indent=2)
 
-    with open('sectors.yaml', 'w') as f:
+    with open('output/sectors.yaml', 'w') as f:
         yaml.dump(sectors, f)
 
-    with open('sectors2.json', 'w') as f:
+    with open('output/sectors2.json', 'w') as f:
         json.dump(sectors2, f, indent=2)
 
-    with open('sectors2.yaml', 'w') as f:
+    with open('output/sectors2.yaml', 'w') as f:
         yaml.dump(sectors2, f)
 
-    with open('sectors3.json', 'w') as f:
+    with open('output/sectors3.json', 'w') as f:
         json.dump(sectors3, f, indent=2)
 
-    with open('sectors3.txt', 'w') as f:
+    with open('output/sectors3.txt', 'w') as f:
         for sector, ward_count in sectors3:
             f.write(f'{sector}: {ward_count} wards\n')
 
-    with open('sectors-1-ward.csv', 'w') as f:
+    with open('output/sectors-1-ward.csv', 'w') as f:
         f.write('Sector,Ward Code,Ward Name\n')
         for sector, ward_count in sectors3:
             if ward_count == 1:
