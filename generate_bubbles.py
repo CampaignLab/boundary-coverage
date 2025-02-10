@@ -28,115 +28,186 @@ wales_shapefile_filename = 'Final Recs Shapefiles/Final Recommendations_region.s
 wards_shapefile_filename = 'Wards_May_2024_Boundaries_UK_BSC_8498175397534686318.gpkg'
 
 def download_and_extract(url, path):
-  filepath = os.path.join('data', path)
-  if os.path.exists(filepath):
-    print(f'{filepath} already exists')
-    return
+    """
+    Downloads a zip file from a URL and extracts its contents to a specified path.
 
-  print(f'Downloading {url}')
-  response = requests.get(url)
-  print(f'Extracting to {filepath}')
-  zip_file = zipfile.ZipFile(io.BytesIO(response.content))
-  zip_file.extractall(filepath)
+    Args:
+        url (str): The URL of the zip file to download
+        path (str): The relative path where the contents should be extracted
+    """
+    filepath = os.path.join('data', path)
+    if os.path.exists(filepath):
+        print(f'{filepath} already exists')
+        return
+
+    print(f'Downloading {url}')
+    response = requests.get(url)
+    print(f'Extracting to {filepath}')
+    zip_file = zipfile.ZipFile(io.BytesIO(response.content))
+    zip_file.extractall(filepath)
 
 def download_to_file(url, path):
-  print(f'Downloading {url} to {path}')
-  filepath = os.path.join('data', path)
-  if os.path.exists(filepath):
-    print(f'{filepath} already exists')
-    return
+    """
+    Downloads a file from a URL and saves it directly to the specified path.
 
-  response = requests.get(url, allow_redirects=True)
-  response.raise_for_status()
+    Args:
+        url (str): The URL of the file to download
+        path (str): The relative path where the file should be saved
+    """
+    print(f'Downloading {url} to {path}')
+    filepath = os.path.join('data', path)
+    if os.path.exists(filepath):
+        print(f'{filepath} already exists')
+        return
 
-  with open(filepath, 'wb') as f:
-    f.write(response.content)
+    response = requests.get(url, allow_redirects=True)
+    response.raise_for_status()
+
+    with open(filepath, 'wb') as f:
+        f.write(response.content)
 
 def create_boundary_list(shapefile_path, key1, key2=None):
-  boundaries = []
-  with fiona.open('data/' + shapefile_path) as boundaries_file:
-    for boundary in boundaries_file:
-      boundary_shape = make_valid(shape(boundary['geometry']))
-      key = boundary.properties[key1]
-      if key2:
-        key = key + ' ' + boundary.properties[key2]
-      boundaries.append((key, boundary_shape))
-    return boundaries
+    """
+    Creates a list of boundary tuples from a shapefile, where each tuple contains a key and its corresponding shape.
+
+    Args:
+        shapefile_path (str): Path to the shapefile
+        key1 (str): Primary key field name in the shapefile properties
+        key2 (str, optional): Secondary key field name to concatenate with key1
+
+    Returns:
+        list: List of tuples containing (key, shape) pairs
+    """
+    boundaries = []
+    with fiona.open('data/' + shapefile_path) as boundaries_file:
+        for boundary in boundaries_file:
+            boundary_shape = make_valid(shape(boundary['geometry']))
+            key = boundary.properties[key1]
+            if key2:
+                key = key + ' ' + boundary.properties[key2]
+            boundaries.append((key, boundary_shape))
+        return boundaries
 
 def calculate_radius_upper_bound(boundary):
-  mrr = minimum_rotated_rectangle(boundary)
-  x, y = mrr.exterior.xy
-  edge_lengths = (
-    Point(x[0], y[0]).distance(Point(x[1], y[1])),
-    Point(x[1], y[1]).distance(Point(x[2], y[2]))
-  )
+    """
+    Calculates the maximum possible radius for bubbles within a boundary based on its minimum rotated rectangle.
 
-  width = min(edge_lengths)
-  return int((width // 2000) * 1000)
+    Args:
+        boundary: A shapely geometry object representing the boundary
+
+    Returns:
+        int: Upper bound radius in meters, rounded to nearest thousand
+    """
+    mrr = minimum_rotated_rectangle(boundary)
+    x, y = mrr.exterior.xy
+    edge_lengths = (
+        Point(x[0], y[0]).distance(Point(x[1], y[1])),
+        Point(x[1], y[1]).distance(Point(x[2], y[2]))
+    )
+
+    width = min(edge_lengths)
+    return int((width // 2000) * 1000)
 
 def calculate_step(polygons, radius, bubble_length):
-  total_polygon_length = sum([polygon.exterior.length for polygon in polygons])
-  iteration_bubble_count = total_polygon_length / radius
-  step = radius
-  is_last_iteration = radius == 1000 or (bubble_length + iteration_bubble_count) > BUBBLE_LIMIT
+    """
+    Calculates the step size between bubble centers based on the polygon length and bubble constraints.
 
-  if is_last_iteration:
-    step = total_polygon_length / (BUBBLE_LIMIT - bubble_length)
+    Args:
+        polygons (list): List of shapely polygon objects
+        radius (float): Current bubble radius
+        bubble_length (int): Current number of bubbles
 
-  return step
+    Returns:
+        float: Step size between bubble centers
+    """
+    total_polygon_length = sum([polygon.exterior.length for polygon in polygons])
+    iteration_bubble_count = total_polygon_length / radius
+    step = radius
+    is_last_iteration = radius == 1000 or (bubble_length + iteration_bubble_count) > BUBBLE_LIMIT
+
+    if is_last_iteration:
+        step = total_polygon_length / (BUBBLE_LIMIT - bubble_length)
+
+    return step
 
 def calculate_bubbles(boundary):
-  radius = calculate_radius_upper_bound(boundary)
-  island_of_possibility = None
+    """
+    Generates a set of bubbles (circles) that fit within the given boundary.
 
-  bubbles = []
-  bubblesData = []
+    Args:
+        boundary: A shapely geometry object representing the boundary
 
-  while radius > 0 and len(bubbles) < BUBBLE_LIMIT:
-    island_of_possibility = buffer(boundary, -(radius + 30))
+    Returns:
+        tuple: (list of bubble geometries, list of bubble data [x, y, radius])
+    """
+    radius = calculate_radius_upper_bound(boundary)
+    island_of_possibility = None
 
-    if not is_empty(island_of_possibility):
-      print(f'   {radius}')
-      polygons = island_of_possibility.geoms if isinstance(island_of_possibility, MultiPolygon) else [island_of_possibility]
+    bubbles = []
+    bubblesData = []
 
-      step = calculate_step(polygons, radius, len(bubbles))
-      for polygon in polygons:
-        for interpolation in np.arange(0, polygon.exterior.length, step):
-          point = polygon.exterior.interpolate(interpolation)
-          bubble = point.buffer(radius)
-          if boundary.contains(bubble):
-            bubbles.append(bubble)
-            bubblesData.append([point.x, point.y, int(radius / 1000)])
+    while radius > 0 and len(bubbles) < BUBBLE_LIMIT:
+        island_of_possibility = buffer(boundary, -(radius + 30))
 
-    if len(bubbles) > 0:
-      radius = (radius // 1500) * 1000
-    else:
-      radius -= 1000
+        if not is_empty(island_of_possibility):
+            print(f'   {radius}')
+            polygons = island_of_possibility.geoms if isinstance(island_of_possibility, MultiPolygon) else [island_of_possibility]
 
-  return bubbles[:BUBBLE_LIMIT], bubblesData[:BUBBLE_LIMIT]
+            step = calculate_step(polygons, radius, len(bubbles))
+            for polygon in polygons:
+                for interpolation in np.arange(0, polygon.exterior.length, step):
+                    point = polygon.exterior.interpolate(interpolation)
+                    bubble = point.buffer(radius)
+                    if boundary.contains(bubble):
+                        bubbles.append(bubble)
+                        bubblesData.append([point.x, point.y, int(radius / 1000)])
+
+        if len(bubbles) > 0:
+            radius = (radius // 1500) * 1000
+        else:
+            radius -= 1000
+
+    return bubbles[:BUBBLE_LIMIT], bubblesData[:BUBBLE_LIMIT]
 
 def get_statistics_row(boundary_name, coverage_percentage, bubblesData):
-  statistics_row = [boundary_name, coverage_percentage]
+    """
+    Creates a statistics row for a boundary containing coverage and bubble count by radius.
 
-  if len(bubblesData) == 0:
+    Args:
+        boundary_name (str): Name of the boundary
+        coverage_percentage (float): Percentage of boundary covered by bubbles
+        bubblesData (list): List of bubble data [x, y, radius]
+
+    Returns:
+        list: Statistics row containing boundary name, coverage, and bubble counts
+    """
+    statistics_row = [boundary_name, coverage_percentage]
+
+    if len(bubblesData) == 0:
+        return statistics_row
+
+    bubble_count_by_radius = {}
+    for (_, _, radius) in bubblesData:
+        if radius in bubble_count_by_radius:
+            bubble_count_by_radius[radius] += 1
+        else:
+            bubble_count_by_radius[radius] = 1
+
+    for radius in range(1, max(bubble_count_by_radius.keys()) + 1):
+        if radius in bubble_count_by_radius:
+            statistics_row.append(bubble_count_by_radius[radius])
+        else:
+            statistics_row.append(0)
+
     return statistics_row
 
-  bubble_count_by_radius = {}
-  for (_, _, radius) in bubblesData:
-    if radius in bubble_count_by_radius:
-      bubble_count_by_radius[radius] += 1
-    else:
-      bubble_count_by_radius[radius] = 1
-
-  for radius in range(1, max(bubble_count_by_radius.keys()) + 1):
-    if radius in bubble_count_by_radius:
-      statistics_row.append(bubble_count_by_radius[radius])
-    else:
-      statistics_row.append(0)
-
-  return statistics_row
-
 def setup_output_directories(output_type):
+    """
+    Creates necessary output directories for storing results.
+
+    Args:
+        output_type (str): Type of output (e.g., 'constituencies' or 'wards')
+    """
     if not os.path.exists(output_type):
         os.makedirs(output_type)
     if not os.path.exists(f'output/{output_type}'):
@@ -145,6 +216,15 @@ def setup_output_directories(output_type):
         os.makedirs(f'output/{output_type}/JPGs')
 
 def get_boundaries(use_wards):
+    """
+    Retrieves boundary data either for wards or constituencies.
+
+    Args:
+        use_wards (bool): If True, retrieves ward boundaries; if False, retrieves constituency boundaries
+
+    Returns:
+        tuple: (list of boundary tuples, output type string)
+    """
     if use_wards:
         wards_path = 'wards/' + wards_shapefile_filename
         download_to_file(wards_shapefile_url, wards_path)
@@ -161,6 +241,13 @@ def get_boundaries(use_wards):
         return england_constituencies + scotland_constituencies + wales_constituencies, 'constituencies'
 
 def write_statistics(statistics_writer, statistics):
+    """
+    Writes summary statistics to the output CSV file.
+
+    Args:
+        statistics_writer: CSV writer object
+        statistics (list): List of coverage percentages
+    """
     statistics_writer.writerow(['', ''])
     statistics_writer.writerow(['mean', sum(statistics) / len(statistics)])
     statistics_writer.writerow(['median', np.median(statistics)])
@@ -169,6 +256,13 @@ def write_statistics(statistics_writer, statistics):
     statistics_writer.writerow(['sigma', np.std(statistics)])
 
 def plot_boundary(ax, boundary):
+    """
+    Plots the boundary outline on both subplots.
+
+    Args:
+        ax: Matplotlib axes array
+        boundary: Shapely geometry object representing the boundary
+    """
     polygons = boundary.geoms if isinstance(boundary, GeometryCollection) or isinstance(boundary, MultiPolygon) else [boundary]
     for polygon in polygons:
         if isinstance(polygon, LineString):
@@ -180,12 +274,32 @@ def plot_boundary(ax, boundary):
             ax[1].plot(x, y, color='blue')
 
 def plot_bubbles(ax, bubbles):
+    """
+    Plots bubbles on both subplots - outlined in first subplot, filled in second subplot.
+
+    Args:
+        ax: Matplotlib axes array
+        bubbles (list): List of bubble geometries
+    """
     for valid_circle in bubbles:
         x, y = valid_circle.exterior.xy
         ax[0].plot(x, y, color='red', linewidth=0.5)
         ax[1].fill(x, y, color='red')
 
 def process_boundary(boundary_item, output_type, transformer, output_writer, statistics_writer):
+    """
+    Processes a single boundary: generates bubbles, creates visualizations, and writes statistics.
+
+    Args:
+        boundary_item (tuple): (boundary name, boundary geometry)
+        output_type (str): Type of boundaries being processed
+        transformer: Coordinate transformer object
+        output_writer: CSV writer for bubble data
+        statistics_writer: CSV writer for statistics
+
+    Returns:
+        float: Coverage percentage achieved for this boundary
+    """
     boundary_name = boundary_item[0]
     boundary = boundary_item[1]
     jpeg_path = os.path.join(f'output/{output_type}/JPGs', boundary_name.replace('/', '&') + '.jpg')
@@ -223,6 +337,10 @@ def process_boundary(boundary_item, output_type, transformer, output_writer, sta
     return coverage_percentage
 
 def main():
+    """
+    Main function that processes either constituency or ward boundaries based on command line arguments.
+    Generates bubble visualizations and statistics for each boundary.
+    """
     parser = argparse.ArgumentParser(description='Generate bubbles for constituencies or wards')
     parser.add_argument('--wards', action='store_true', help='Use wards instead of constituencies')
     args = parser.parse_args()
