@@ -38,8 +38,7 @@ Seven constituencies are small enough and/or awkwardly-shaped enough that they c
  - [Islington South and Finsbury](./output/constituencies/JPGs/Islington%20South%20and%20Finsbury.jpg)
  - [Queen's Park and Maida Vale](./output/constituencies/JPGs/Queen's%20Park%20and%20Maida%20Vale.jpg)
 
-
- ## How can I run this myself?
+## How can I run this myself?
 
   - Clone the repository
   - Change directory into the respository
@@ -59,9 +58,9 @@ Seven constituencies are small enough and/or awkwardly-shaped enough that they c
 
   - Run `python app.py` and view http://localhost:5000/
 
- ## Was this done for the current/old/pre-2024 constituencies?
+## Was this done for the current/old/pre-2024 constituencies?
 
- Yes!
+Yes!
 
 The calculated circles for the **old** constituencies can be found [here](https://github.com/12v/boundary-bubbler/blob/old_constituencies/output/old-bubbles.csv).
 
