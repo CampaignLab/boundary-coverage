@@ -47,6 +47,10 @@ Seven constituencies are small enough and/or awkwardly-shaped enough that they c
 
       conda env create --file environment.yml
 
+  - Activate the environment:
+
+      conda activate bubbles
+
   - Run `python generate_bubbles.py`, which will:
     - Download and fetch shapefiles for constituencies into `data/`
     - Write images showing bubble coverage into `output/constituencies/JPGs`
