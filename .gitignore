@@ -189,3 +189,5 @@ cython_debug/
 
 
 data/
+output/*/JPGs
+output/*/CSVs
