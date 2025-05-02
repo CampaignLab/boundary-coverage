@@ -386,13 +386,14 @@ def main():
     # Filter boundaries if region is specified
     if args.region:
         original_count = len(boundaries)
-        boundaries = [b for b in boundaries if b[0] == args.region]
-        if not boundaries:
+        filtered = [b for b in boundaries if b[0] == args.region]
+        if not filtered:
             print(f"Error: No region found with name '{args.region}'")
-            print(f"Available regions: {[b[0] for b in boundaries[:5]]}...")
+            print(f"Available regions: {[b[0] for b in boundaries]}...")
             return
         print(f"Processing single region: {args.region} (filtered from {original_count} regions)")
-    
+        boundaries = filtered
+
     setup_output_directories(output_type)
     transformer = pyproj.Transformer.from_crs("epsg:27700", "epsg:4326")
 
