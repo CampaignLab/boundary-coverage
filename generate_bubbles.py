@@ -378,9 +378,22 @@ def main():
     """
     parser = argparse.ArgumentParser(description='Generate bubbles for constituencies or wards')
     parser.add_argument('--wards', action='store_true', help='Use wards instead of constituencies')
+    parser.add_argument('--region', type=str, help='Name of the region to process (exact match)')
     args = parser.parse_args()
 
     boundaries, output_type = get_boundaries(args.wards)
+    
+    # Filter boundaries if region is specified
+    if args.region:
+        original_count = len(boundaries)
+        filtered = [b for b in boundaries if b[0] == args.region]
+        if not filtered:
+            print(f"Error: No region found with name '{args.region}'")
+            print(f"Available regions: {[b[0] for b in boundaries]}...")
+            return
+        print(f"Processing single region: {args.region} (filtered from {original_count} regions)")
+        boundaries = filtered
+
     setup_output_directories(output_type)
     transformer = pyproj.Transformer.from_crs("epsg:27700", "epsg:4326")
 
