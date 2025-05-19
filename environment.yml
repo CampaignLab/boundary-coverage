@@ -8,3 +8,4 @@ dependencies:
   - requests
   - matplotlib
   - pyproj
+  - facebook_business

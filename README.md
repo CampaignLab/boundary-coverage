@@ -61,6 +61,24 @@ Seven constituencies are small enough and/or awkwardly-shaped enough that they c
 
   - Run `python app.py` and view http://localhost:5000/
 
+## Uploading bubbles to Meta
+
+The `meta_upload.py` script reads the generated CSV and creates a Saved Audience
+using the `facebook_business` SDK. Set the following environment variables
+before running the script:
+
+```
+FACEBOOK_ACCESS_TOKEN=<your access token>
+FACEBOOK_ACCOUNT_ID=<act_...>
+```
+
+Run the script with:
+
+```
+python meta_upload.py --file output/constituencies/bubbles.csv --name "My Bubbles"
+```
+
+
 ## Was this done for the current/old/pre-2024 constituencies?
 
 Yes!
