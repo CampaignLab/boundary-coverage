@@ -58,6 +58,29 @@ Seven constituencies are small enough and/or awkwardly-shaped enough that they c
 
   - Run `uv run python app.py` and view http://localhost:5000/
 
+## Uploading bubbles to Meta
+
+The `meta_upload.py` script creates Facebook ad sets with geographic
+targeting for political advertising using your bubble data.
+
+**📋 Complete setup guide:** [`docs/meta-api-setup.md`](docs/meta-api-setup.md)
+
+### Quick Start
+
+1. **Setup**: Follow the [Meta API Setup Guide](docs/meta-api-setup.md) to get your access token and account ID
+2. **Create `.env` file**:
+   ```
+   FACEBOOK_ACCESS_TOKEN=your_token_here
+   FACEBOOK_ACCOUNT_ID=your_account_id
+   ```
+3. **Run the script**:
+   ```bash
+   python meta_upload.py --file output/constituencies/CSVs/Aldershot.csv --prefix "UK Election 2024: "
+   ```
+4. **View results**: Go to [Meta Ads Manager](https://www.facebook.com/adsmanager/manage/campaigns) to see your campaigns and ad sets
+
+The script creates Facebook campaigns and ad sets with precise geographic targeting, properly marked for political advertising compliance.
+
 ## Was this done for the current/old/pre-2024 constituencies?
 
 Yes!
