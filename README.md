@@ -44,14 +44,38 @@ Seven constituencies are small enough and/or awkwardly-shaped enough that they c
 ## How can I run this myself?
 
   - Clone the repository
-  - Change directory into the respository
-  - Install the dependencies, e.g. using Anaconda:
+  - Change directory into the repository
+  - Set up your Python environment and install dependencies using the `pyproject.toml` file. You have a couple of options:
 
-      conda env create --file environment.yml
+    **Using `uv` (recommended for this project setup):**
+    1. Install `uv` if you haven't already (see the [official `uv` installation guide](https://github.com/astral-sh/uv#installation)).
+    2. Create a virtual environment:
+       ```bash
+       uv venv
+       ```
+    3. Activate the virtual environment:
+       - On macOS/Linux: `source .venv/bin/activate`
+       - On Windows: `.\.venv\Scripts\activate`
+    4. Install the project and its dependencies from `pyproject.toml`:
+       ```bash
+       uv pip install .
+       ```
 
-  - Activate the environment:
-
-      conda activate bubbles
+    **Using `conda`:**
+    1. Ensure you have Anaconda or Miniconda installed.
+    2. Create a new conda environment. The `pyproject.toml` specifies Python `>=3.8`. For example, to create an environment named `bubbles` with Python 3.8:
+       ```bash
+       conda create --name bubbles python=3.8
+       ```
+    3. Activate the environment:
+       ```bash
+       conda activate bubbles
+       ```
+    4. Install the project and its dependencies using `pip` (which is available in conda environments) with the `pyproject.toml` file:
+       ```bash
+       pip install .
+       ```
+       (If you have `uv` installed, you can also use `uv pip install .` within the activated conda environment.)
 
   - Run `python generate_bubbles.py`, which will:
     - Download and fetch shapefiles for constituencies into `data/`
@@ -72,11 +96,19 @@ FACEBOOK_ACCESS_TOKEN=<your access token>
 FACEBOOK_ACCOUNT_ID=<act_...>
 ```
 
-Run the script with:
+You can run it like this:
 
 ```
-python meta_upload.py --file output/constituencies/bubbles.csv --name "My Bubbles"
+python meta_upload.py --file your_file.csv
 ```
+
+Or with a prefix:
+
+```
+python meta_upload.py --file your_file.csv --prefix "UK Election 2024: "
+```
+
+This should create your audiences for "Altrincham and Sale West" and "Wrexham" with their respective bubble locations. The script will report on successful and failed audience creations at the end.
 
 
 ## Was this done for the current/old/pre-2024 constituencies?
