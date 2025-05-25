@@ -1,6 +1,7 @@
 name: bubbles
 channels:
   - defaults
+  - conda-forge
 dependencies:
   - python
   - fiona
@@ -8,3 +9,9 @@ dependencies:
   - requests
   - matplotlib
   - pyproj
+  - jupyterlab
+  - pandas
+  - numpy
+  - shapely
+  - ipykernel
+  - notebook

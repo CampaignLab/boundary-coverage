@@ -147,10 +147,8 @@ def calculate_bubbles(boundary):
     inclusion_bubbles = []
     inclusion_data = []
 
-    padded_boundary = boundary.buffer(500)
-
     while radius > 0 and len(inclusion_bubbles) < BUBBLE_LIMIT:
-        island_of_possibility = buffer(padded_boundary, -(radius + 30))
+        island_of_possibility = buffer(boundary, -(radius + 30))
 
         if not is_empty(island_of_possibility):
             print(f'   {radius}')
@@ -161,7 +159,7 @@ def calculate_bubbles(boundary):
                 for interpolation in np.arange(0, polygon.exterior.length, step):
                     point = polygon.exterior.interpolate(interpolation)
                     bubble = point.buffer(radius)
-                    if padded_boundary.contains(bubble):
+                    if boundary.contains(bubble):
                         inclusion_bubbles.append(bubble)
                         inclusion_data.append([point.x, point.y, int(radius / 1000)])
 
@@ -170,31 +168,8 @@ def calculate_bubbles(boundary):
         else:
             radius -= 1000
 
-    # Generate exclusion bubbles around the perimeter
     exclusion_bubbles = []
     exclusion_data = []
-    
-    # Use a smaller radius for exclusion bubbles
-    exclusion_radius = 1000  # 1km radius for exclusion bubbles
-    
-    # Get the boundary exterior
-    padded_boundary = boundary.buffer(1000)
-    polygons = padded_boundary.geoms if isinstance(padded_boundary, MultiPolygon) else [padded_boundary]
-    print(len(polygons))
-    for polygon in polygons:
-        if isinstance(polygon, LineString):
-            continue
-            
-        # Calculate step size based on the perimeter length
-        perimeter = polygon.exterior.length
-        step = exclusion_radius / 4 # Some overlap
-        
-        # Place exclusion bubbles along the perimeter
-        for distance in np.arange(0, perimeter, step):
-            point = polygon.exterior.interpolate(distance)
-            bubble = point.buffer(exclusion_radius)
-            exclusion_bubbles.append(bubble)
-            exclusion_data.append([point.x, point.y, int(exclusion_radius / 1000)])
 
     return (
         inclusion_bubbles[:BUBBLE_LIMIT],
@@ -297,8 +272,8 @@ def write_summary_statistics(statistics_writer, statistics):
         statistics_writer: CSV writer object
         statistics (list): List of coverage statistics dictionaries
     """
-    statistics_writer.writerow(['', '', '', ''])
-    for stat_type in ['inclusion', 'exclusion', 'net']:
+    statistics_writer.writerow(['', '', '', '', ''])
+    for stat_type in ['internal_inclusion', 'external_inclusion', 'exclusion', 'net']:
         values = [s[stat_type] for s in statistics]
         statistics_writer.writerow([f'{stat_type}_mean', sum(values) / len(values)])
         statistics_writer.writerow([f'{stat_type}_median', np.median(values)])
@@ -323,7 +298,7 @@ def setup_output_files(output_type):
     output_writer.writerow(['bubble', 'name', 'type'])
     
     statistics_writer = csv.writer(statistics_file)
-    statistics_writer.writerow(['name', 'inclusion_coverage', 'exclusion_coverage', 'net_coverage'])
+    statistics_writer.writerow(['name', 'internal_inclusion_coverage', 'external_inclusion_coverage', 'exclusion_coverage', 'net_coverage'])
     
     return output_file, statistics_file, output_writer, statistics_writer
 
@@ -350,6 +325,48 @@ def filter_boundaries(boundaries, region):
         
     print(f"Processing single region: {region} (filtered from {original_count} regions)")
     return filtered
+
+def compute_coverage_stats(boundary, inclusion_bubbles, exclusion_bubbles):
+    """
+    Computes coverage statistics for a boundary based on inclusion and exclusion bubbles.
+
+    Args:
+        boundary: Shapely geometry object representing the boundary
+        inclusion_bubbles (list): List of inclusion bubble geometries
+        exclusion_bubbles (list): List of exclusion bubble geometries
+
+    Returns:
+        dict: Coverage statistics including internal_inclusion, external_inclusion, exclusion, and net coverage percentages
+    """
+    inclusion_union = union_all(inclusion_bubbles) if inclusion_bubbles else Point(0, 0).buffer(0)
+    exclusion_union = union_all(exclusion_bubbles) if exclusion_bubbles else Point(0, 0).buffer(0)
+    
+    # Calculate internal inclusion area (inclusion bubbles that intersect with boundary)
+    internal_inclusion_area = inclusion_union.intersection(boundary).area
+    
+    # Calculate external inclusion area (inclusion bubbles outside boundary, not covered by exclusion)
+    external_inclusion_area = inclusion_union.difference(boundary).difference(exclusion_union).area
+    
+    # Calculate exclusion area (only the part that intersects with boundary)
+    exclusion_area = exclusion_union.intersection(boundary).area
+    
+    # Calculate coverage percentages
+    internal_inclusion_coverage = 100 * internal_inclusion_area / boundary.area
+    exclusion_coverage = 100 * exclusion_area / boundary.area
+    external_inclusion_coverage = 100 * external_inclusion_area / boundary.area
+    
+    # Net coverage should be the area within boundary covered by inclusion but NOT exclusion
+    net_area_within_boundary = inclusion_union.intersection(boundary).difference(exclusion_union).area
+    net_coverage = 100 * net_area_within_boundary / boundary.area
+    
+    coverage_stats = {
+        "internal_inclusion": internal_inclusion_coverage,
+        "external_inclusion": external_inclusion_coverage,
+        "exclusion": exclusion_coverage,
+        "net": net_coverage
+    }
+    
+    return coverage_stats
 
 def process_boundary(boundary_item, output_type, transformer, output_writer, statistics_writer):
     """
@@ -392,31 +409,15 @@ def process_boundary(boundary_item, output_type, transformer, output_writer, sta
             output_writer.writerow([bubble_str, boundary_name, 'exclusion'])
 
     # Calculate coverage statistics
-    inclusion_union = union_all(inclusion_bubbles)
-    exclusion_union = union_all(exclusion_bubbles)
-    
-    # Calculate areas
-    inclusion_area = inclusion_union.area
-    exclusion_area = exclusion_union.area
-    overlap_area = inclusion_union.intersection(exclusion_union).area
-    
-    # Calculate coverage percentages
-    inclusion_coverage = 100 * inclusion_area / boundary.area
-    exclusion_coverage = 100 * exclusion_area / boundary.area
-    net_coverage = 100 * (inclusion_area - overlap_area) / boundary.area
-    
-    coverage_stats = {
-        "inclusion": inclusion_coverage,
-        "exclusion": exclusion_coverage,
-        "net": net_coverage
-    }
+    coverage_stats = compute_coverage_stats(boundary, inclusion_bubbles, exclusion_bubbles)
     
     # Write statistics
     statistics_writer.writerow([
         boundary_name,
-        inclusion_coverage,
-        exclusion_coverage,
-        net_coverage
+        coverage_stats["internal_inclusion"],
+        coverage_stats["external_inclusion"],
+        coverage_stats["exclusion"],
+        coverage_stats["net"]
     ])
 
     create_boundary_visualization(
@@ -452,9 +453,7 @@ def create_boundary_visualization(boundary_name, boundary, inclusion_bubbles, ex
 
     area_sq_km = boundary.area / 1_000_000
     coverage_text = (
-        f'Inclusion coverage: {coverage_stats["inclusion"]:.0f}%\n'
-        f'Exclusion coverage: {coverage_stats["exclusion"]:.0f}%\n'
-        f'Net coverage: {coverage_stats["net"]:.0f}%\n'
+        f'Coverage: {coverage_stats["net"]:.0f}%\n'
         f'Area: {area_sq_km:.1f} km²'
     )
     fig.text(0.5, 0.85, coverage_text, ha='center', fontsize=12)
