@@ -454,7 +454,6 @@ def create_boundary_visualization(boundary_name, boundary, inclusion_bubbles, ex
     area_sq_km = boundary.area / 1_000_000
     coverage_text = (
         f'Coverage: {coverage_stats["net"]:.0f}%\n'
-        f'Area: {area_sq_km:.1f} km²'
     )
     fig.text(0.5, 0.85, coverage_text, ha='center', fontsize=12)
 
