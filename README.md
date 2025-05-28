@@ -87,7 +87,7 @@ Seven constituencies are small enough and/or awkwardly-shaped enough that they c
 
 ## Uploading bubbles to Meta
 
-The `meta_upload.py` script reads the generated CSV and creates a Saved Audience
+The `meta_upload.py` script reads the generated CSV and creates Saved Audiences
 using the `facebook_business` SDK. Set the following environment variables
 before running the script:
 
@@ -95,6 +95,34 @@ before running the script:
 FACEBOOK_ACCESS_TOKEN=<your access token>
 FACEBOOK_ACCOUNT_ID=<act_...>
 ```
+
+### Inclusion and Exclusion Targeting
+
+The system now supports inclusion and exclusion targeting through an optional `type` column in the CSV:
+
+- **inclusion**: Locations that should be targeted (default if type is missing)
+- **exclusion**: Locations that should be excluded from targeting
+
+For each constituency/region, the script creates **one saved audience** that combines both inclusion and exclusion locations in the same targeting specification:
+
+```python
+# Example targeting_spec structure
+{
+    'geo_locations': {
+        'location_types': ['home', 'recent'],
+        'custom_locations': [
+            # inclusion locations go here
+        ],
+        'excluded_custom_locations': [
+            # exclusion locations go here  
+        ]
+    }
+}
+```
+
+This approach allows you to use the saved audience directly in your ad sets without needing to manage separate inclusion and exclusion audiences.
+
+### Usage
 
 You can run it like this:
 

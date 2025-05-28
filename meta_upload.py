@@ -47,8 +47,8 @@ def init_ad_account():
     # Retrieve credentials from environment variables
     access_token = os.getenv("FACEBOOK_ACCESS_TOKEN")
     account_id = os.getenv("FACEBOOK_ACCOUNT_ID")
-    app_id = os.getenv("FACEBOOK_APP_ID") # Recommended for API initialization
-    app_secret = os.getenv("FACEBOOK_APP_SECRET") # Recommended for API initialization
+    app_id = os.getenv("FACEBOOK_APP_ID")  # Recommended for API initialization
+    app_secret = os.getenv("FACEBOOK_APP_SECRET")  # Recommended for API initialization
 
     if not access_token or not account_id:
         raise SystemExit(
@@ -66,22 +66,46 @@ def init_ad_account():
     return AdAccount(account_id)
 
 
-def create_saved_audience(locations_by_name):
+def create_saved_audience(audiences_by_name):
     account = init_ad_account()
 
-    for name, custom_locations in locations_by_name.items():
-        params = {
-            'name':        name + ' Geofence',
-            'description': f'Geofence circles for {name}',
-            'targeting': {
-                'geo_locations': {
-                    'location_types': ['home', 'recent'],
-                    'custom_locations': custom_locations
-                }
+    for name, audience_data in audiences_by_name.items():
+        inclusions = audience_data.get('inclusions', [])
+        exclusions = audience_data.get('exclusions', [])
+        
+        # Skip if no locations at all
+        if not inclusions and not exclusions:
+            print(f"Skipping '{name}': no inclusion or exclusion locations found")
+            continue
+        
+        # Build targeting spec with both inclusions and exclusions
+        targeting_spec = {
+            'geo_locations': {
+                'location_types': ['home', 'recent']
             }
         }
-        audience = account.create_saved_audience(params=params)
-        print(f"Created Saved Audience “{name}” with ID: {audience.get('id')}")
+        
+        # Add inclusion locations
+        if inclusions:
+            targeting_spec['geo_locations']['custom_locations'] = inclusions
+        
+        # Add exclusion locations  
+        if exclusions:
+            targeting_spec['geo_locations']['excluded_custom_locations'] = exclusions
+        
+        params = {
+            'name': name + ' Geofence',
+            'description': f'Geofence for {name} with {len(inclusions)} inclusions and {len(exclusions)} exclusions',
+            'targeting_spec': targeting_spec
+        }
+        
+        try:
+            audience = account.create_saved_audience(params=params)
+            print(f"Created Saved Audience '{name}' with ID: {audience.get('id')}")
+            print(f"  - {len(inclusions)} inclusion locations")
+            print(f"  - {len(exclusions)} exclusion locations")
+        except Exception as e:
+            print(f"Failed to create audience for '{name}': {e}")
 
 
 if __name__ == "__main__":
