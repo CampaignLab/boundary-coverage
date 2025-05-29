@@ -6,13 +6,14 @@ app = Flask(__name__)
 
 def load_statistics():
     statistics = []
-    with open('output/wards/statistics.csv', 'r') as f:
+    with open('output/constituencies/statistics.csv', 'r') as f:
         reader = csv.DictReader(f)
         for row in reader:
-            if row['name'] and row['coverage']:  # Skip empty rows and summary stats
+            if row['name'] and row['net_coverage']:  # Skip empty rows and summary stats
                 statistics.append({
                     'name': row['name'],
-                    'coverage': float(row['coverage'])
+                    'coverage': float(row['net_coverage']),
+                    'external_inclusion_coverage': float(row['external_inclusion_coverage'])
                 })
     return sorted(statistics, key=lambda x: x['name'])
 
@@ -23,7 +24,7 @@ def index():
 
 @app.route('/images/<path:filename>')
 def serve_image(filename):
-    return send_from_directory('output/wards/JPGs', filename + '.jpg')
+    return send_from_directory('output/constituencies/JPGs', filename + '.jpg')
 
 if __name__ == '__main__':
     # Create templates directory if it doesn't exist
