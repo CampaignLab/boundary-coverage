@@ -132,42 +132,51 @@ def calculate_step(polygons, radius, bubble_length):
 
 def calculate_bubbles(boundary):
     """
-    Generates a set of bubbles (circles) that fit within the given boundary.
+    Generate inclusion and exclusion bubbles for a boundary.
 
     Args:
         boundary: A shapely geometry object representing the boundary
 
     Returns:
-        tuple: (list of bubble geometries, list of bubble data [x, y, radius])
+        tuple: (list of inclusion bubble geometries, list of inclusion bubble data [x, y, radius],
+               list of exclusion bubble geometries, list of exclusion bubble data [x, y, radius])
     """
     radius = calculate_radius_upper_bound(boundary)
     island_of_possibility = None
 
-    bubbles = []
-    bubblesData = []
+    inclusion_bubbles = []
+    inclusion_data = []
 
-    while radius > 0 and len(bubbles) < BUBBLE_LIMIT:
+    while radius > 0 and len(inclusion_bubbles) < BUBBLE_LIMIT:
         island_of_possibility = buffer(boundary, -(radius + 30))
 
         if not is_empty(island_of_possibility):
             print(f'   {radius}')
             polygons = island_of_possibility.geoms if isinstance(island_of_possibility, MultiPolygon) else [island_of_possibility]
 
-            step = calculate_step(polygons, radius, len(bubbles))
+            step = calculate_step(polygons, radius, len(inclusion_bubbles))
             for polygon in polygons:
                 for interpolation in np.arange(0, polygon.exterior.length, step):
                     point = polygon.exterior.interpolate(interpolation)
                     bubble = point.buffer(radius)
                     if boundary.contains(bubble):
-                        bubbles.append(bubble)
-                        bubblesData.append([point.x, point.y, int(radius / 1000)])
+                        inclusion_bubbles.append(bubble)
+                        inclusion_data.append([point.x, point.y, int(radius / 1000)])
 
-        if len(bubbles) > 0:
+        if len(inclusion_bubbles) > 0:
             radius = (radius // 1500) * 1000
         else:
             radius -= 1000
 
-    return bubbles[:BUBBLE_LIMIT], bubblesData[:BUBBLE_LIMIT]
+    exclusion_bubbles = []
+    exclusion_data = []
+
+    return (
+        inclusion_bubbles[:BUBBLE_LIMIT],
+        inclusion_data[:BUBBLE_LIMIT],
+        exclusion_bubbles,
+        exclusion_data
+    )
 
 def get_statistics_row(boundary_name, coverage_percentage, bubblesData):
     """
@@ -255,20 +264,209 @@ def get_boundaries(use_wards):
 
         return england_constituencies + scotland_constituencies + wales_constituencies, 'constituencies'
 
-def write_statistics(statistics_writer, statistics):
+def write_summary_statistics(statistics_writer, statistics):
     """
-    Writes summary statistics to the output CSV file.
-
+    Writes summary statistics for inclusion, exclusion, and net coverage.
+    
     Args:
         statistics_writer: CSV writer object
-        statistics (list): List of coverage percentages
+        statistics (list): List of coverage statistics dictionaries
     """
-    statistics_writer.writerow(['', ''])
-    statistics_writer.writerow(['mean', sum(statistics) / len(statistics)])
-    statistics_writer.writerow(['median', np.median(statistics)])
-    statistics_writer.writerow(['min', min(statistics)])
-    statistics_writer.writerow(['max', max(statistics)])
-    statistics_writer.writerow(['sigma', np.std(statistics)])
+    statistics_writer.writerow(['', '', '', '', ''])
+    for stat_type in ['internal_inclusion', 'external_inclusion', 'exclusion', 'net']:
+        values = [s[stat_type] for s in statistics]
+        statistics_writer.writerow([f'{stat_type}_mean', sum(values) / len(values)])
+        statistics_writer.writerow([f'{stat_type}_median', np.median(values)])
+        statistics_writer.writerow([f'{stat_type}_min', min(values)])
+        statistics_writer.writerow([f'{stat_type}_max', max(values)])
+        statistics_writer.writerow([f'{stat_type}_sigma', np.std(values)])
+
+def setup_output_files(output_type):
+    """
+    Sets up and returns the output CSV files and their writers.
+    
+    Args:
+        output_type (str): Type of output (e.g., 'constituencies' or 'wards')
+    
+    Returns:
+        tuple: (output_writer, statistics_writer)
+    """
+    output_file = open(f'output/{output_type}/bubbles.csv', 'w')
+    statistics_file = open(f'output/{output_type}/statistics.csv', 'w')
+    
+    output_writer = csv.writer(output_file)
+    output_writer.writerow(['bubble', 'name', 'type'])
+    
+    statistics_writer = csv.writer(statistics_file)
+    statistics_writer.writerow(['name', 'internal_inclusion_coverage', 'external_inclusion_coverage', 'exclusion_coverage', 'net_coverage'])
+    
+    return output_file, statistics_file, output_writer, statistics_writer
+
+def filter_boundaries(boundaries, region):
+    """
+    Filters boundaries to only include the specified region.
+    
+    Args:
+        boundaries (list): List of boundary tuples
+        region (str): Name of region to filter for
+    
+    Returns:
+        list: Filtered list of boundaries
+    """
+    if not region:
+        return boundaries
+        
+    original_count = len(boundaries)
+    filtered = [b for b in boundaries if b[0] == region]
+    if not filtered:
+        print(f"Error: No region found with name '{region}'")
+        print(f"Available regions: {[b[0] for b in boundaries]}...")
+        return []
+        
+    print(f"Processing single region: {region} (filtered from {original_count} regions)")
+    return filtered
+
+def compute_coverage_stats(boundary, inclusion_bubbles, exclusion_bubbles):
+    """
+    Computes coverage statistics for a boundary based on inclusion and exclusion bubbles.
+
+    Args:
+        boundary: Shapely geometry object representing the boundary
+        inclusion_bubbles (list): List of inclusion bubble geometries
+        exclusion_bubbles (list): List of exclusion bubble geometries
+
+    Returns:
+        dict: Coverage statistics including internal_inclusion, external_inclusion, exclusion, and net coverage percentages
+    """
+    inclusion_union = union_all(inclusion_bubbles) if inclusion_bubbles else Point(0, 0).buffer(0)
+    exclusion_union = union_all(exclusion_bubbles) if exclusion_bubbles else Point(0, 0).buffer(0)
+    
+    # Calculate internal inclusion area (inclusion bubbles that intersect with boundary)
+    internal_inclusion_area = inclusion_union.intersection(boundary).area
+    
+    # Calculate external inclusion area (inclusion bubbles outside boundary, not covered by exclusion)
+    external_inclusion_area = inclusion_union.difference(boundary).difference(exclusion_union).area
+    
+    # Calculate exclusion area (only the part that intersects with boundary)
+    exclusion_area = exclusion_union.intersection(boundary).area
+    
+    # Calculate coverage percentages
+    internal_inclusion_coverage = 100 * internal_inclusion_area / boundary.area
+    exclusion_coverage = 100 * exclusion_area / boundary.area
+    external_inclusion_coverage = 100 * external_inclusion_area / boundary.area
+    
+    # Net coverage should be the area within boundary covered by inclusion but NOT exclusion
+    net_area_within_boundary = inclusion_union.intersection(boundary).difference(exclusion_union).area
+    net_coverage = 100 * net_area_within_boundary / boundary.area
+    
+    coverage_stats = {
+        "internal_inclusion": internal_inclusion_coverage,
+        "external_inclusion": external_inclusion_coverage,
+        "exclusion": exclusion_coverage,
+        "net": net_coverage
+    }
+    
+    return coverage_stats
+
+def process_boundary(boundary_item, output_type, transformer, output_writer, statistics_writer):
+    """
+    Processes a single boundary: generates bubbles, creates visualizations, and writes statistics.
+
+    Args:
+        boundary_item (tuple): (boundary name, boundary geometry)
+        output_type (str): Type of boundaries being processed
+        transformer: Coordinate transformer object
+        output_writer: CSV writer for bubble data
+        statistics_writer: CSV writer for statistics
+
+    Returns:
+        dict: Coverage statistics for this boundary
+    """
+    boundary_name = boundary_item[0]
+    boundary = boundary_item[1]
+
+    # Assuming calculate_bubbles now returns both inclusion and exclusion bubbles
+    inclusion_bubbles, inclusion_data, exclusion_bubbles, exclusion_data = calculate_bubbles(boundary)
+
+    # Write bubble data to CSV
+    csv_file = os.path.join(get_output_directory(output_type, 'CSVs'), f'{boundary_name}.csv')
+    with open(csv_file, 'w') as csv_output:
+        bubbles_writer = csv.writer(csv_output)
+        bubbles_writer.writerow(['bubble_type', 'coordinates', 'radius'])
+        
+        # Write inclusion bubbles
+        for (x, y, radius) in inclusion_data:
+            lat, long = transformer.transform(x, y)
+            bubble_str = f'({lat}, {long}) +{radius}km'
+            bubbles_writer.writerow(['inclusion', bubble_str, radius])
+            output_writer.writerow([bubble_str, boundary_name, 'inclusion'])
+        
+        # Write exclusion bubbles
+        for (x, y, radius) in exclusion_data:
+            lat, long = transformer.transform(x, y)
+            bubble_str = f'({lat}, {long}) +{radius}km'
+            bubbles_writer.writerow(['exclusion', bubble_str, radius])
+            output_writer.writerow([bubble_str, boundary_name, 'exclusion'])
+
+    # Calculate coverage statistics
+    coverage_stats = compute_coverage_stats(boundary, inclusion_bubbles, exclusion_bubbles)
+    
+    # Write statistics
+    statistics_writer.writerow([
+        boundary_name,
+        coverage_stats["internal_inclusion"],
+        coverage_stats["external_inclusion"],
+        coverage_stats["exclusion"],
+        coverage_stats["net"]
+    ])
+
+    create_boundary_visualization(
+        boundary_name,
+        boundary,
+        inclusion_bubbles,
+        exclusion_bubbles,
+        coverage_stats,
+        output_type
+    )
+
+    return coverage_stats
+
+def create_boundary_visualization(boundary_name, boundary, inclusion_bubbles, exclusion_bubbles, coverage_stats, output_type):
+    """
+    Creates and saves a visualization of a boundary and its bubbles.
+
+    Args:
+        boundary_name (str): Name of the boundary
+        boundary: Shapely geometry object representing the boundary
+        inclusion_bubbles (list): List of inclusion bubble geometries
+        exclusion_bubbles (list): List of exclusion bubble geometries
+        coverage_stats (dict): Dictionary containing coverage statistics
+        output_type (str): Type of output (e.g., 'constituencies' or 'wards')
+    """
+    jpeg_path = os.path.join(get_output_directory(output_type, 'JPGs'), boundary_name.replace('/', '&') + '.jpg')
+    print(jpeg_path)
+
+    fig, ax = plt.subplots(1, 2)
+    ax[0].set_aspect('equal', adjustable='box')
+    ax[1].set_aspect('equal', adjustable='box')
+    fig.suptitle(boundary_name, y=0.98)
+
+    area_sq_km = boundary.area / 1_000_000
+    coverage_text = (
+        f'Coverage: {coverage_stats["net"]:.0f}%\n'
+    )
+    fig.text(0.5, 0.85, coverage_text, ha='center', fontsize=12)
+
+    ax[0].xaxis.set_visible(False)
+    ax[0].yaxis.set_visible(False)
+    ax[1].xaxis.set_visible(False)
+    ax[1].yaxis.set_visible(False)
+
+    plot_boundary(ax, boundary)
+    plot_bubbles(ax, inclusion_bubbles, exclusion_bubbles)
+
+    fig.savefig(jpeg_path, dpi=300)
+    plt.close(fig)
 
 def plot_boundary(ax, boundary):
     """
@@ -288,88 +486,26 @@ def plot_boundary(ax, boundary):
             ax[0].plot(x, y, color='blue')
             ax[1].plot(x, y, color='blue')
 
-def plot_bubbles(ax, bubbles):
+def plot_bubbles(ax, inclusion_bubbles, exclusion_bubbles):
     """
-    Plots bubbles on both subplots - outlined in first subplot, filled in second subplot.
-
+    Plots inclusion and exclusion bubbles on both subplots.
+    
     Args:
         ax: Matplotlib axes array
-        bubbles (list): List of bubble geometries
+        inclusion_bubbles (list): List of inclusion bubble geometries
+        exclusion_bubbles (list): List of exclusion bubble geometries
     """
-    for valid_circle in bubbles:
-        x, y = valid_circle.exterior.xy
+    # Plot inclusion bubbles in green
+    for bubble in inclusion_bubbles:
+        x, y = bubble.exterior.xy
+        ax[0].plot(x, y, color='green', linewidth=0.5)
+        ax[1].fill(x, y, color='green', alpha=0.5)
+    
+    # Plot exclusion bubbles in red
+    for bubble in exclusion_bubbles:
+        x, y = bubble.exterior.xy
         ax[0].plot(x, y, color='red', linewidth=0.5)
-        ax[1].fill(x, y, color='red')
-
-def create_boundary_visualization(boundary_name, boundary, bubbles, coverage_percentage, output_type):
-    """
-    Creates and saves a visualization of a boundary and its bubbles.
-
-    Args:
-        boundary_name (str): Name of the boundary
-        boundary: Shapely geometry object representing the boundary
-        bubbles (list): List of bubble geometries
-        coverage_percentage (float): Percentage of boundary covered by bubbles
-        output_type (str): Type of output (e.g., 'constituencies' or 'wards')
-    """
-    jpeg_path = os.path.join(get_output_directory(output_type, 'JPGs'), boundary_name.replace('/', '&') + '.jpg')
-    print(jpeg_path)
-
-    fig, ax = plt.subplots(1, 2)
-    ax[0].set_aspect('equal', adjustable='box')
-    ax[1].set_aspect('equal', adjustable='box')
-    fig.suptitle(boundary_name, y=0.98)
-
-    area_sq_km = boundary.area / 1_000_000
-    fig.text(0.5, 0.85, f'{coverage_percentage:.0f}% coverage\nArea: {area_sq_km:.1f} km²',
-             ha='center', fontsize=12)
-
-    ax[0].xaxis.set_visible(False)
-    ax[0].yaxis.set_visible(False)
-    ax[1].xaxis.set_visible(False)
-    ax[1].yaxis.set_visible(False)
-
-    plot_boundary(ax, boundary)
-    plot_bubbles(ax, bubbles)
-
-    fig.savefig(jpeg_path, dpi=300)
-    plt.close(fig)
-
-def process_boundary(boundary_item, output_type, transformer, output_writer, statistics_writer):
-    """
-    Processes a single boundary: generates bubbles, creates visualizations, and writes statistics.
-
-    Args:
-        boundary_item (tuple): (boundary name, boundary geometry)
-        output_type (str): Type of boundaries being processed
-        transformer: Coordinate transformer object
-        output_writer: CSV writer for bubble data
-        statistics_writer: CSV writer for statistics
-
-    Returns:
-        float: Coverage percentage achieved for this boundary
-    """
-    boundary_name = boundary_item[0]
-    boundary = boundary_item[1]
-
-    bubbles, bubblesData = calculate_bubbles(boundary)
-
-    csv_file = os.path.join(get_output_directory(output_type, 'CSVs'), f'{boundary_name}.csv')
-    with open(csv_file, 'w') as csv_output:
-        bubbles_writer = csv.writer(csv_output)
-        bubbles_writer.writerow(['bubble'])
-        for (x, y, radius) in bubblesData:
-            lat, long = transformer.transform(x, y)
-            bubbles_writer.writerow(['({}, {}) +{}km'.format(lat, long, radius)])
-            output_writer.writerow(['({}, {}) +{}km'.format(lat, long, radius), boundary_name])
-    print(csv_file)
-
-    coverage_percentage = 100 * union_all(bubbles).area / boundary.area
-    statistics_writer.writerow(get_statistics_row(boundary_name, coverage_percentage, bubblesData))
-
-    create_boundary_visualization(boundary_name, boundary, bubbles, coverage_percentage, output_type)
-
-    return coverage_percentage
+        ax[1].fill(x, y, color='red', alpha=0.5)
 
 def main():
     """
@@ -382,44 +518,24 @@ def main():
     args = parser.parse_args()
 
     boundaries, output_type = get_boundaries(args.wards)
-    
-    # Filter boundaries if region is specified
-    if args.region:
-        original_count = len(boundaries)
-        filtered = [b for b in boundaries if b[0] == args.region]
-        if not filtered:
-            print(f"Error: No region found with name '{args.region}'")
-            print(f"Available regions: {[b[0] for b in boundaries]}...")
-            return
-        print(f"Processing single region: {args.region} (filtered from {original_count} regions)")
-        boundaries = filtered
+    boundaries = filter_boundaries(boundaries, args.region)
+    if not boundaries:
+        return
 
     setup_output_directories(output_type)
     transformer = pyproj.Transformer.from_crs("epsg:27700", "epsg:4326")
 
-    with (
-        open(f'output/{output_type}/bubbles.csv', 'w') as csv_output,
-        open(f'output/{output_type}/statistics.csv', 'w') as statistics_output
-    ):
-        output_writer = csv.writer(csv_output)
-        output_writer.writerow(['bubble', 'name'])
-
-        statistics_writer = csv.writer(statistics_output)
-        statistics_writer.writerow(['name', 'coverage'])
-
-        statistics = []
-        for boundary_item in boundaries:
-            coverage_percentage = process_boundary(
-                boundary_item,
-                output_type,
-                transformer,
-                output_writer,
-                statistics_writer
-            )
-            statistics.append(coverage_percentage)
-
-        write_statistics(statistics_writer, statistics)
-
+    output_file, statistics_file, output_writer, statistics_writer = setup_output_files(output_type)
+    
+    try:
+        statistics = [
+            process_boundary(boundary_item, output_type, transformer, output_writer, statistics_writer)
+            for boundary_item in boundaries
+        ]
+        write_summary_statistics(statistics_writer, statistics)
+    finally:
+        output_file.close()
+        statistics_file.close()
 
 if __name__ == '__main__':
-  main()
+    main()
