@@ -33,6 +33,7 @@
                     <div class="card-body">
                         <h5 class="card-title">{{ constituency.name }}</h5>
                         <p class="card-text mb-1">Coverage: {{ "%.1f"|format(constituency.coverage) }}%</p>
+                        <p class="card-text mb-1">External Area Covered: {{ "%.1f"|format(constituency.external_inclusion_coverage) }}%</p>
                         <div class="progress coverage-bar">
                             <div class="progress-bar bg-success" 
                                  role="progressbar" 
