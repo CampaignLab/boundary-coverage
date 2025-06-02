@@ -44,22 +44,19 @@ Seven constituencies are small enough and/or awkwardly-shaped enough that they c
 ## How can I run this myself?
 
   - Clone the repository
-  - Change directory into the respository
-  - Install the dependencies, e.g. using Anaconda:
+  - Change directory into the repository
+  - Install [uv](https://docs.astral.sh/uv/getting-started/installation/) if you haven't already
+  - Install the dependencies:
 
-      conda env create --file environment.yml
+      uv sync
 
-  - Activate the environment:
-
-      conda activate bubbles
-
-  - Run `python generate_bubbles.py`, which will:
+  - Run `uv run python generate_bubbles.py`, which will:
     - Download and fetch shapefiles for constituencies into `data/`
     - Write images showing bubble coverage into `output/constituencies/JPGs`
     - Write `output/constituencies/bubbles.csv` with one bubble per record
     - Write `output/constituencies/statistics.csv` with one constituency per record
 
-  - Run `python app.py` and view http://localhost:5000/
+  - Run `uv run python app.py` and view http://localhost:5000/
 
 ## Was this done for the current/old/pre-2024 constituencies?
 
