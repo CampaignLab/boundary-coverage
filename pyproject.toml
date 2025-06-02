@@ -1,0 +1,37 @@
+[project]
+name = "boundary-coverage"
+version = "0.1.0"
+description = "Filling constituencies with circles"
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = [
+    "fiona",
+    "rtree",
+    "requests",
+    "matplotlib",
+    "pyproj",
+    "shapely",
+    "numpy",
+    "flask",
+    "pyyaml"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "black",
+    "flake8",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["."]
+exclude = [
+    "/.git",
+    "/.venv",
+    "/output",
+    "/data",
+    "/.DS_Store",
+    "/.ropeproject",
+    "*.pyc",
+    "__pycache__",
+]
