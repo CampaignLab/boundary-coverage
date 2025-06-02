@@ -15,3 +15,4 @@ dependencies:
   - shapely
   - ipykernel
   - notebook
+  - flask
