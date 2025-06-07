@@ -10,6 +10,8 @@ dependencies = [
     "requests",
     "matplotlib",
     "pyproj",
+    "facebook-business",
+    "python-dotenv",
     "shapely",
     "numpy",
     "flask",
