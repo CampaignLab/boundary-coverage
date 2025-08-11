@@ -15,7 +15,8 @@ dependencies = [
     "shapely",
     "numpy",
     "flask",
-    "pyyaml"
+    "pyyaml",
+    "jupyter",
 ]
 
 [project.optional-dependencies]
