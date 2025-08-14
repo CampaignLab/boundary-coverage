@@ -47,12 +47,12 @@ def download_to_file(url, path):
         url (str): The URL of the file to download
         path (str): The relative path where the file should be saved
     """
-    print(f'Downloading {url} to {path}')
     filepath = os.path.join('data', path)
     if os.path.exists(filepath):
         print(f'{filepath} already exists')
         return
 
+    print(f'Downloading {url} to {path}')
     response = requests.get(url, allow_redirects=True)
     response.raise_for_status()
 
