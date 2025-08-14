@@ -18,7 +18,9 @@ england_shapefile_filename = '2023_06_27_Final_recommendations_England.shp'
 scotland_shapefile_filename = 'All_Scotland_Final_Recommended_Constituencies_2023_Review.shp'
 wales_shapefile_filename = 'Final Recs Shapefiles/Final Recommendations_region.shp'
 
-wards_shapefile_filename = 'Wards_May_2024_Boundaries_UK_BSC_8498175397534686318.gpkg'
+# wards_shapefile_filename = 'Wards_May_2024_Boundaries_UK_BSC_8498175397534686318.gpkg'
+wards_shapefile_filename = 'Wards_(May_2025)_Boundaries_UK_BFE_(V2)_BNG.gpkg'
+
 
 def download_and_extract(url, path):
     """
@@ -123,7 +125,7 @@ def get_boundaries(use_wards):
     if use_wards:
         wards_path = 'wards/' + wards_shapefile_filename
         download_to_file(wards_shapefile_url, wards_path)
-        return create_boundary_list(wards_path, 'WD24CD', 'WD24NM'), 'wards'
+        return create_boundary_list(wards_path, 'WD25CD', 'WD25NM'), 'wards'
     else:
         download_and_extract(england_shapefile_url, 'england')
         download_and_extract(scotland_shapefile_url, 'scotland')
