@@ -2,3 +2,4 @@
 output/
 postcodes/input/
 postcodes/output/
+.env
