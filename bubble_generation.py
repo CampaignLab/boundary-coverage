@@ -72,7 +72,7 @@ def generate_inclusion_bubbles(boundary, initial_radius, padding=0):
         island_of_possibility = buffer(padded_boundary, -(radius + 30))
 
         if not is_empty(island_of_possibility):
-            print(f"   {radius}")
+            print(f"   Using radius {radius}m to generate inclusion bubbles")
             polygons = (
                 island_of_possibility.geoms
                 if isinstance(island_of_possibility, MultiPolygon)
