@@ -41,6 +41,7 @@ def download_and_extract(url, path):
     zip_file = zipfile.ZipFile(io.BytesIO(response.content))
     zip_file.extractall(filepath)
 
+
 def download_to_file(url, path):
     """
     Downloads a file from a URL and saves it directly to the specified path.
@@ -60,6 +61,7 @@ def download_to_file(url, path):
 
     with open(filepath, 'wb') as f:
         f.write(response.content)
+
 
 def create_boundary_list(shapefile_path, key1, key2=None):
     """
@@ -82,6 +84,7 @@ def create_boundary_list(shapefile_path, key1, key2=None):
                 key = key + ' ' + boundary.properties[key2]
             boundaries.append((key, boundary_shape))
         return boundaries
+
 
 def get_output_directory(output_type, directory_type):
     """
@@ -112,6 +115,7 @@ def setup_output_directories(output_type):
     if not os.path.exists(get_output_directory(output_type, 'CSVs')):
         os.makedirs(get_output_directory(output_type, 'CSVs'))
 
+
 def get_boundaries(use_wards):
     """
     Retrieves boundary data either for wards or constituencies.
@@ -140,17 +144,17 @@ def get_boundaries(use_wards):
 def filter_boundaries(boundaries, region):
     """
     Filters boundaries to only include the specified region.
-    
+
     Args:
         boundaries (list): List of boundary tuples
         region (str): Name of region to filter for
-    
+
     Returns:
         list: Filtered list of boundaries
     """
     if not region:
         return boundaries
-        
+
     original_count = len(boundaries)
     filtered = [b for b in boundaries if b[0] == region]
     if not filtered:
@@ -161,19 +165,20 @@ def filter_boundaries(boundaries, region):
     print(f"Processing single region: {region} (filtered from {original_count} regions)")
     return filtered
 
+
 def setup_output_files(output_type):
     """
     Sets up and returns the output CSV files and their writers.
-    
+
     Args:
         output_type (str): Type of output (e.g., 'constituencies' or 'wards')
-    
+
     Returns:
         tuple: (output_file, statistics_file, output_writer, statistics_writer)
     """
     output_file = open(f'output/{output_type}/bubbles.csv', 'w')
     statistics_file = open(f'output/{output_type}/statistics.csv', 'w')
-    
+
     output_writer = csv.writer(output_file)
     output_writer.writerow(['bubble', 'name', 'type'])
     

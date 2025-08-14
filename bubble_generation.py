@@ -24,6 +24,7 @@ def calculate_radius_upper_bound(boundary):
     width = min(edge_lengths)
     return int((width // 2000) * 1000)
 
+
 def calculate_step(polygons, radius, bubble_length):
     """
     Calculates the step size between bubble centers based on the polygon length and bubble constraints.
@@ -91,5 +92,5 @@ def calculate_bubbles(boundary):
         inclusion_bubbles[:BUBBLE_LIMIT],
         inclusion_data[:BUBBLE_LIMIT],
         exclusion_bubbles,
-        exclusion_data
+        exclusion_data,
     )

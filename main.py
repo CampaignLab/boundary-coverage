@@ -31,14 +31,14 @@ def process_boundary(boundary_item, output_type, transformer, output_writer, sta
     with open(csv_file, 'w') as csv_output:
         bubbles_writer = csv.writer(csv_output)
         bubbles_writer.writerow(['bubble_type', 'coordinates', 'radius'])
-        
+
         # Write inclusion bubbles
         for (x, y, radius) in inclusion_data:
             lat, long = transformer.transform(x, y)
             bubble_str = f'({lat}, {long}) +{radius}km'
             bubbles_writer.writerow(['inclusion', bubble_str, radius])
             output_writer.writerow([bubble_str, boundary_name, 'inclusion'])
-        
+
         # Write exclusion bubbles
         for (x, y, radius) in exclusion_data:
             lat, long = transformer.transform(x, y)
@@ -48,7 +48,7 @@ def process_boundary(boundary_item, output_type, transformer, output_writer, sta
 
     # Calculate coverage statistics
     coverage_stats = compute_coverage_stats(boundary, inclusion_bubbles, exclusion_bubbles)
-    
+
     # Write statistics
     statistics_writer.writerow([
         boundary_name,
@@ -88,7 +88,7 @@ def main():
     transformer = pyproj.Transformer.from_crs("epsg:27700", "epsg:4326")
 
     output_file, statistics_file, output_writer, statistics_writer = setup_output_files(output_type)
-    
+
     try:
         statistics = [
             process_boundary(boundary_item, output_type, transformer, output_writer, statistics_writer)
