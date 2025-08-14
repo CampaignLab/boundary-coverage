@@ -40,7 +40,9 @@ def calculate_step(polygons, radius, bubble_length):
     total_polygon_length = sum([polygon.exterior.length for polygon in polygons])
     iteration_bubble_count = total_polygon_length / radius
     step = radius
-    is_last_iteration = radius == 1000 or (bubble_length + iteration_bubble_count) > BUBBLE_LIMIT
+    is_last_iteration = (
+        radius == 1000 or (bubble_length + iteration_bubble_count) > BUBBLE_LIMIT
+    )
 
     if is_last_iteration:
         step = total_polygon_length / (BUBBLE_LIMIT - bubble_length)
@@ -69,7 +71,11 @@ def calculate_bubbles(boundary):
 
         if not is_empty(island_of_possibility):
             print(f'   {radius}')
-            polygons = island_of_possibility.geoms if isinstance(island_of_possibility, MultiPolygon) else [island_of_possibility]
+            polygons = (
+                island_of_possibility.geoms
+                if isinstance(island_of_possibility, MultiPolygon)
+                else [island_of_possibility]
+            )
 
             step = calculate_step(polygons, radius, len(inclusion_bubbles))
             for polygon in polygons:
