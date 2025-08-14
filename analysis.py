@@ -109,8 +109,9 @@ def create_boundary_visualization(boundary_name, boundary, inclusion_bubbles, ex
         output_type (str): Type of output (e.g., 'constituencies' or 'wards')
     """
     from boundaries import get_output_directory
+    from utils import sanitize_filename
     
-    jpeg_path = os.path.join(get_output_directory(output_type, 'JPGs'), boundary_name.replace('/', '&') + '.jpg')
+    jpeg_path = os.path.join(get_output_directory(output_type, 'JPGs'), sanitize_filename(boundary_name) + '.jpg')
     print(jpeg_path)
 
     fig, ax = plt.subplots(1, 2)

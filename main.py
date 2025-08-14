@@ -6,6 +6,7 @@ import pyproj
 from boundaries import get_boundaries, filter_boundaries, setup_output_directories, setup_output_files, get_output_directory
 from bubble_generation import calculate_bubbles_with_exclusions
 from analysis import compute_coverage_stats, create_boundary_visualization, write_summary_statistics
+from utils import sanitize_filename
 
 def process_boundary(boundary_item, output_type, transformer, output_writer, statistics_writer):
     """
@@ -29,7 +30,7 @@ def process_boundary(boundary_item, output_type, transformer, output_writer, sta
     )
 
     # Write bubble data to CSV
-    csv_file = os.path.join(get_output_directory(output_type, 'CSVs'), f'{boundary_name}.csv')
+    csv_file = os.path.join(get_output_directory(output_type, 'CSVs'), f'{sanitize_filename(boundary_name)}.csv')
     with open(csv_file, 'w') as csv_output:
         bubbles_writer = csv.writer(csv_output)
         bubbles_writer.writerow(['bubble_type', 'coordinates', 'radius'])
