@@ -1,7 +1,7 @@
 # Filling constituencies with circles
 
 *Completed bubbles found here*
-https://drive.google.com/drive/folders/18DFu78sS90x-3FpQmy7LHtLcuGedilCR?usp=sharing 
+https://drive.google.com/drive/folders/18DFu78sS90x-3FpQmy7LHtLcuGedilCR?usp=sharing
 
 ## What is this?
 
@@ -48,9 +48,9 @@ Seven constituencies are small enough and/or awkwardly-shaped enough that they c
   - Install [uv](https://docs.astral.sh/uv/getting-started/installation/) if you haven't already
   - Install the dependencies:
 
-      uv sync
+      uv sync --all-extras
 
-  - Run `uv run python generate_bubbles.py`, which will:
+  - Run `uv run python main.py`, which will:
     - Download and fetch shapefiles for constituencies into `data/`
     - Write images showing bubble coverage into `output/constituencies/JPGs`
     - Write `output/constituencies/bubbles.csv` with one bubble per record

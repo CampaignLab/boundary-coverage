@@ -4,7 +4,7 @@ import os
 import pyproj
 
 from boundaries import get_boundaries, filter_boundaries, setup_output_directories, setup_output_files, get_output_directory
-from bubble_generation import calculate_bubbles
+from bubble_generation import calculate_bubbles_with_exclusions
 from analysis import compute_coverage_stats, create_boundary_visualization, write_summary_statistics
 
 def process_boundary(boundary_item, output_type, transformer, output_writer, statistics_writer):
@@ -24,21 +24,23 @@ def process_boundary(boundary_item, output_type, transformer, output_writer, sta
     boundary_name = boundary_item[0]
     boundary = boundary_item[1]
 
-    inclusion_bubbles, inclusion_data, exclusion_bubbles, exclusion_data = calculate_bubbles(boundary)
+    inclusion_bubbles, inclusion_data, exclusion_bubbles, exclusion_data = (
+        calculate_bubbles_with_exclusions(boundary)
+    )
 
     # Write bubble data to CSV
     csv_file = os.path.join(get_output_directory(output_type, 'CSVs'), f'{boundary_name}.csv')
     with open(csv_file, 'w') as csv_output:
         bubbles_writer = csv.writer(csv_output)
         bubbles_writer.writerow(['bubble_type', 'coordinates', 'radius'])
-        
+
         # Write inclusion bubbles
         for (x, y, radius) in inclusion_data:
             lat, long = transformer.transform(x, y)
             bubble_str = f'({lat}, {long}) +{radius}km'
             bubbles_writer.writerow(['inclusion', bubble_str, radius])
             output_writer.writerow([bubble_str, boundary_name, 'inclusion'])
-        
+
         # Write exclusion bubbles
         for (x, y, radius) in exclusion_data:
             lat, long = transformer.transform(x, y)
@@ -48,7 +50,7 @@ def process_boundary(boundary_item, output_type, transformer, output_writer, sta
 
     # Calculate coverage statistics
     coverage_stats = compute_coverage_stats(boundary, inclusion_bubbles, exclusion_bubbles)
-    
+
     # Write statistics
     statistics_writer.writerow([
         boundary_name,
@@ -88,7 +90,7 @@ def main():
     transformer = pyproj.Transformer.from_crs("epsg:27700", "epsg:4326")
 
     output_file, statistics_file, output_writer, statistics_writer = setup_output_files(output_type)
-    
+
     try:
         statistics = [
             process_boundary(boundary_item, output_type, transformer, output_writer, statistics_writer)

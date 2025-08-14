@@ -16,7 +16,6 @@ dependencies = [
     "numpy",
     "flask",
     "pyyaml",
-    "jupyter",
 ]
 
 [project.optional-dependencies]
@@ -24,6 +23,8 @@ dev = [
     "pytest",
     "black",
     "flake8",
+    "jupyter",
+    "pandas",
 ]
 
 [tool.hatch.build.targets.wheel]
